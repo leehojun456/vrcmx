@@ -10,9 +10,7 @@ class AuthService {
   static const String _cookieKey = 'vrchat_auth_cookie';
   String? _authCookie; // 인증 쿠키 저장
   
-  AuthService() {
-    _loadSavedCookie();
-  }
+  AuthService();
 
   // 저장된 쿠키 로드
   Future<void> _loadSavedCookie() async {
@@ -383,6 +381,9 @@ class AuthService {
   // 저장된 세션으로 자동 로그인 시도
   Future<models.LoginResponse> tryAutoLogin() async {
     try {
+      // 먼저 저장된 쿠키를 로드
+      await _loadSavedCookie();
+      
       print('🔄 자동 로그인 시도 - 쿠키 상태: $_authCookie');
       
       if (_authCookie == null || _authCookie!.isEmpty) {

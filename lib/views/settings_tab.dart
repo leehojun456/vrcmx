@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get/get.dart';
 import '../models/auth_state.dart';
-import '../viewmodels/auth_viewmodel.dart';
+import '../controllers/auth_controller.dart';
+import '../models/auth_state.dart';
 import 'api_response_view.dart';
 import 'login_page.dart';
 
-class SettingsTab extends ConsumerWidget {
+class SettingsTab extends StatelessWidget {
   const SettingsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authViewModelProvider);
+  Widget build(BuildContext context) {
+    final auth = Get.find<AuthController>();
+    final authState = auth.state.value;
 
     return Scaffold(
       appBar: AppBar(
@@ -30,14 +32,14 @@ class SettingsTab extends ConsumerWidget {
       body: authState.when(
         initial: () => const Center(child: Text('로그인이 필요합니다.')),
         loading: () => const Center(child: CircularProgressIndicator()),
-        authenticated: (user) => _buildSettingsContent(context, ref, user),
+        authenticated: (user) => _buildSettingsContent(context, user),
         requires2FA: (methods) => const Center(child: Text('2차 인증이 필요합니다.')),
         error: (message) => Center(child: Text('오류: $message')),
       ),
     );
   }
 
-  Widget _buildSettingsContent(BuildContext context, WidgetRef ref, user) {
+  Widget _buildSettingsContent(BuildContext context, user) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -70,7 +72,7 @@ class SettingsTab extends ConsumerWidget {
                 title: Text('로그아웃', style: TextStyle(color: Colors.red[600])),
                 subtitle: const Text('저장된 로그인 정보를 삭제합니다'),
                 onTap: () {
-                  _showLogoutDialog(context, ref);
+                  _showLogoutDialog(context);
                 },
               ),
             ],
@@ -106,7 +108,7 @@ class SettingsTab extends ConsumerWidget {
     );
   }
 
-  void _showLogoutDialog(BuildContext context, WidgetRef ref) {
+  void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -121,7 +123,9 @@ class SettingsTab extends ConsumerWidget {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                ref.read(authViewModelProvider.notifier).logout();
+
+                final auth = Get.find<AuthController>();
+                auth.logout();
 
                 // 로그인 페이지로 이동
                 Navigator.of(context).pushAndRemoveUntil(

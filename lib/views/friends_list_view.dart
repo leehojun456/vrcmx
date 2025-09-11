@@ -1,24 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get/get.dart';
 import '../models/friend.dart';
 import '../services/auth_service.dart';
 import '../widgets/vrchat_network_image.dart';
-import '../providers/websocket_provider.dart';
+import '../controllers/friends_controller.dart';
 
-class FriendsListView extends ConsumerStatefulWidget {
+class FriendsListView extends StatefulWidget {
   final AuthService authService;
-  
-  const FriendsListView({
-    super.key,
-    required this.authService,
-  });
+
+  const FriendsListView({super.key, required this.authService});
 
   @override
-  ConsumerState<FriendsListView> createState() => _FriendsListViewState();
+  State<FriendsListView> createState() => _FriendsListViewState();
 }
 
-class _FriendsListViewState extends ConsumerState<FriendsListView> {
-  List<Friend> _filteredFriends = [];
+class _FriendsListViewState extends State<FriendsListView> {
+  final FriendsController c = Get.find<FriendsController>();
   final TextEditingController _searchController = TextEditingController();
   bool _showOnlineOnly = false;
 
@@ -26,8 +23,8 @@ class _FriendsListViewState extends ConsumerState<FriendsListView> {
   void initState() {
     super.initState();
     _searchController.addListener(() {
-      final friends = ref.read(realtimeFriendsProvider);
-      _filterFriends(friends);
+      // 검색어 변경 시 재빌드만 유도
+      setState(() {});
     });
   }
 
@@ -37,33 +34,35 @@ class _FriendsListViewState extends ConsumerState<FriendsListView> {
     super.dispose();
   }
 
-
-  void _filterFriends(List<Friend> friends) {
+  // 필터링은 빌드 시점에 계산하도록 단순화
+  List<Friend> _computeFiltered(List<Friend> friends) {
     final query = _searchController.text.toLowerCase();
-    setState(() {
-      _filteredFriends = friends.where((friend) {
-        final matchesSearch = query.isEmpty ||
-            friend.displayName.toLowerCase().contains(query) ||
-            (friend.id.toLowerCase().contains(query));
-        
-        final matchesOnlineFilter = !_showOnlineOnly || friend.isOnline;
-        
-        return matchesSearch && matchesOnlineFilter;
-      }).toList();
+    final filtered = friends.where((friend) {
+      final matchesSearch =
+          query.isEmpty ||
+          friend.displayName.toLowerCase().contains(query) ||
+          friend.id.toLowerCase().contains(query);
+      final matchesOnlineFilter = !_showOnlineOnly || friend.isOnline;
+      return matchesSearch && matchesOnlineFilter;
+    }).toList();
 
-      // 온라인 친구를 맨 위로 정렬
-      _filteredFriends.sort((a, b) {
-        if (a.isOnline && !b.isOnline) return -1;
-        if (!a.isOnline && b.isOnline) return 1;
-        return a.displayName.compareTo(b.displayName);
-      });
+    filtered.sort((a, b) {
+      if (a.isOnline && !b.isOnline) return -1;
+      if (!a.isOnline && b.isOnline) return 1;
+      return a.displayName.compareTo(b.displayName);
     });
+
+    return filtered;
   }
 
   Widget _buildFriendCard(Friend friend) {
     return Card(
+      key: ValueKey(friend.id),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ListTile(
+        key: ValueKey(
+          'tile_${friend.id}_${friend.location ?? ''}_${friend.isOnline}',
+        ),
         leading: Stack(
           children: [
             VRChatCircleAvatar(
@@ -98,13 +97,11 @@ class _FriendsListViewState extends ConsumerState<FriendsListView> {
               friend.id,
               style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
-            if (friend.statusDescription != null && friend.statusDescription!.isNotEmpty)
+            if (friend.statusDescription != null &&
+                friend.statusDescription!.isNotEmpty)
               Text(
                 friend.statusDescription!,
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontSize: 12,
-                ),
+                style: TextStyle(color: Colors.grey[700], fontSize: 12),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -207,15 +204,11 @@ class _FriendsListViewState extends ConsumerState<FriendsListView> {
   }
 
   String _getLocationText(Friend friend) {
-    // active 상태는 location이 없어도 "Active"로 표시
-    if (friend.status?.toLowerCase() == 'active') {
-      if (friend.location == null || friend.location == 'offline') return 'Active';
-    }
-    
-    if (friend.location == 'offline' || friend.location == null) return 'Offline';
+    // friend-location 규격대로 location만 표시 (단순화)
+    if (friend.location == null || friend.location == 'offline')
+      return 'Offline';
     if (friend.location == 'private') return 'Private World';
-    if (friend.worldId != null) return friend.worldId!;
-    return friend.location ?? 'Online';
+    return friend.location!;
   }
 
   void _showFriendDetails(Friend friend) {
@@ -292,14 +285,21 @@ class _FriendsListViewState extends ConsumerState<FriendsListView> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                _buildDetailRow('Status', _getStatusText(friend.status, friend.location)),
-                if (friend.statusDescription != null && friend.statusDescription!.isNotEmpty)
+                _buildDetailRow(
+                  'Status',
+                  _getStatusText(friend.status, friend.location),
+                ),
+                if (friend.statusDescription != null &&
+                    friend.statusDescription!.isNotEmpty)
                   _buildDetailRow('Status Message', friend.statusDescription!),
                 _buildDetailRow('Location', _getLocationText(friend)),
                 if (friend.lastPlatform != null)
                   _buildDetailRow('Platform', friend.lastPlatform!),
                 if (friend.lastLogin != null)
-                  _buildDetailRow('Last Login', _formatDateTime(friend.lastLogin!)),
+                  _buildDetailRow(
+                    'Last Login',
+                    _formatDateTime(friend.lastLogin!),
+                  ),
                 _buildDetailRow('User ID', friend.id),
                 const SizedBox(height: 32),
               ],
@@ -324,10 +324,7 @@ class _FriendsListViewState extends ConsumerState<FriendsListView> {
             ),
           ),
           Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontFamily: 'monospace'),
-            ),
+            child: Text(value, style: const TextStyle(fontFamily: 'monospace')),
           ),
         ],
       ),
@@ -341,169 +338,158 @@ class _FriendsListViewState extends ConsumerState<FriendsListView> {
 
   @override
   Widget build(BuildContext context) {
-    final friends = ref.watch(realtimeFriendsProvider);
-    final isConnected = ref.watch(webSocketConnectionProvider);
-    
-    // 친구 목록이 업데이트될 때마다 필터링
-    if (friends.isNotEmpty) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _filterFriends(friends);
-      });
-    }
-
-    final onlineCount = friends.where((f) => f.isOnline).length;
-    final totalCount = friends.length;
+    // AppBar counts and connection indicator react via Obx
 
     return Scaffold(
       appBar: AppBar(
-        title: Row(
-          children: [
-            Text('Friends ($onlineCount/$totalCount)'),
-            const SizedBox(width: 8),
-            // 웹소켓 연결 상태 표시
-            Icon(
-              isConnected ? Icons.wifi : Icons.wifi_off,
-              size: 20,
-              color: isConnected ? Colors.green : Colors.red,
-            ),
-          ],
-        ),
+        title: Obx(() {
+          final onlineCount = c.friends.where((f) => f.isOnline).length;
+          final totalCount = c.friends.length;
+          final isConnected = c.isConnected.value;
+          return Row(
+            children: [
+              Text('Friends ($onlineCount/$totalCount)'),
+              const SizedBox(width: 8),
+              Icon(
+                isConnected ? Icons.wifi : Icons.wifi_off,
+                size: 20,
+                color: isConnected ? Colors.green : Colors.red,
+              ),
+            ],
+          );
+        }),
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () async {
-              final friendsNotifier = ref.read(realtimeFriendsProvider.notifier);
-              await friendsNotifier.refresh();
-            },
-          ),
-          // 웹소켓 연결/해제 버튼
-          IconButton(
-            icon: Icon(isConnected ? Icons.pause : Icons.play_arrow),
-            onPressed: () async {
-              final connectionNotifier = ref.read(webSocketConnectionProvider.notifier);
-              if (isConnected) {
-                await connectionNotifier.disconnect();
-              } else {
-                await connectionNotifier.connect();
-              }
-            },
-          ),
-        ],
       ),
-      body: Column(
-        children: [
-          // 검색 및 필터
-          Container(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search friends...',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Checkbox(
-                      value: _showOnlineOnly,
-                      onChanged: (value) {
-                        setState(() {
-                          _showOnlineOnly = value ?? false;
-                        });
-                        _filterFriends(friends);
-                      },
-                    ),
-                    const Text('Show online only'),
-                    const Spacer(),
-                    // 실시간 업데이트 상태 표시
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isConnected ? Colors.green[50] : Colors.red[50],
+      body: Obx(() {
+        final friends = c.friends;
+        final isConnected = c.isConnected.value;
+        final filteredFriends = _computeFiltered(friends);
+        return Column(
+          children: [
+            // 검색 및 필터
+            Container(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search friends...',
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isConnected ? Colors.green : Colors.red,
-                        ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isConnected ? Icons.circle : Icons.circle_outlined,
-                            size: 8,
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Checkbox(
+                        value: _showOnlineOnly,
+                        onChanged: (value) {
+                          setState(() {
+                            _showOnlineOnly = value ?? false;
+                          });
+                          // 필터는 빌드 시점에 계산
+                        },
+                      ),
+                      const Text('Show online only'),
+                      const Spacer(),
+                      // 실시간 업데이트 상태 표시
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isConnected
+                              ? Colors.green[50]
+                              : Colors.red[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
                             color: isConnected ? Colors.green : Colors.red,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            isConnected ? 'Live' : 'Offline',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isConnected ? Colors.green[700] : Colors.red[700],
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-          // 친구목록
-          Expanded(
-            child: friends.isEmpty
-                ? const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Loading friends...'),
-                      ],
-                    ),
-                  )
-                : _filteredFriends.isEmpty
-                    ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
-                            const SizedBox(height: 16),
+                            Icon(
+                              isConnected
+                                  ? Icons.circle
+                                  : Icons.circle_outlined,
+                              size: 8,
+                              color: isConnected ? Colors.green : Colors.red,
+                            ),
+                            const SizedBox(width: 4),
                             Text(
-                              _searchController.text.isNotEmpty
-                                  ? 'No friends found matching "${_searchController.text}"'
-                                  : 'No friends found',
-                              style: TextStyle(color: Colors.grey[600]),
+                              isConnected ? 'Live' : 'Offline',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isConnected
+                                    ? Colors.green[700]
+                                    : Colors.red[700],
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ],
                         ),
-                      )
-                    : RefreshIndicator(
-                        onRefresh: () async {
-                          final friendsNotifier = ref.read(realtimeFriendsProvider.notifier);
-                          await friendsNotifier.refresh();
-                        },
-                        child: ListView.builder(
-                          itemCount: _filteredFriends.length,
-                          itemBuilder: (context, index) {
-                            return _buildFriendCard(_filteredFriends[index]);
-                          },
-                        ),
                       ),
-          ),
-        ],
-      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            // 친구목록
+            Expanded(
+              child: friends.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('Loading friends...'),
+                        ],
+                      ),
+                    )
+                  : filteredFriends.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.people_outline,
+                            size: 64,
+                            color: Colors.grey[400],
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _searchController.text.isNotEmpty
+                                ? 'No friends found matching "${_searchController.text}"'
+                                : 'No friends found',
+                            style: TextStyle(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    )
+                  : RefreshIndicator(
+                      onRefresh: () async {
+                        await c.refreshFriends();
+                      },
+                      child: ListView.builder(
+                        itemCount: filteredFriends.length,
+                        itemBuilder: (context, index) {
+                          return _buildFriendCard(filteredFriends[index]);
+                        },
+                      ),
+                    ),
+            ),
+          ],
+        );
+      }),
     );
   }
 }

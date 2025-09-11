@@ -2,19 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart' as models;
-import '../models/friend.dart';
+import 'package:vrcmx/models/friend.dart';
+import 'package:vrcmx/models/user.dart' as models;
 
 class AuthService {
   static const String baseUrl = 'https://api.vrchat.cloud/api/1';
   static const String _cookieKey = 'vrchat_auth_cookie';
   String? _authCookie; // 인증 쿠키 저장
-  
+
   AuthService();
-  
+
   // 외부에서 접근 가능하도록 getter 추가
   String? get authCookie => _authCookie;
-  
+
   // 외부에서 쿠키 로드 메서드 접근 가능하도록
   Future<void> loadSavedCookie() async => await _loadSavedCookie();
 
@@ -63,14 +63,14 @@ class AuthService {
   // Set-Cookie 헤더에서 auth 쿠키 추출
   String? _extractAuthCookie(String setCookieHeader) {
     print('🍪 Set-Cookie 헤더: $setCookieHeader'); // 디버그 로그
-    
+
     // Set-Cookie 헤더는 여러 쿠키가 있을 때 여러 줄로 올 수 있음
     final cookies = setCookieHeader.split('\n');
-    
+
     for (final cookieLine in cookies) {
       final trimmed = cookieLine.trim();
       print('🍪 쿠키 라인: $trimmed'); // 디버그 로그
-      
+
       if (trimmed.startsWith('auth=')) {
         // auth=value; 형태에서 value만 추출
         final parts = trimmed.split(';');
@@ -79,7 +79,7 @@ class AuthService {
         print('🍪 추출된 쿠키: $cookieValue'); // 디버그 로그
         return cookieValue;
       }
-      
+
       // 쉼표로 구분된 경우도 확인
       if (trimmed.contains('auth=')) {
         final commaSplit = trimmed.split(',');
@@ -93,7 +93,7 @@ class AuthService {
         }
       }
     }
-    
+
     print('🍪 auth 쿠키를 찾을 수 없음');
     return null;
   }
@@ -108,35 +108,40 @@ class AuthService {
       }
 
       // VRChat API 호출
-      final response = await http.get(
-        Uri.parse('$baseUrl/auth/user'),
-        headers: {
-          'Authorization': _createBasicAuth(request.username, request.password),
-          'User-Agent': 'VRCMX/1.0.0',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/auth/user'),
+            headers: {
+              'Authorization': _createBasicAuth(
+                request.username,
+                request.password,
+              ),
+              'User-Agent': 'VRCMX/1.0.0',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       final responseData = jsonDecode(response.body);
-      
+
       // 모든 응답 헤더 디버그 출력
       print('📨 응답 상태: ${response.statusCode}');
       print('📨 응답 헤더: ${response.headers}');
       print('📨 응답 본문: ${response.body}');
-      
+
       if (response.statusCode == 200) {
         // 2FA가 필요한지 확인
-        if (responseData.containsKey('requiresTwoFactorAuth') && 
+        if (responseData.containsKey('requiresTwoFactorAuth') &&
             responseData['requiresTwoFactorAuth'] is List &&
             (responseData['requiresTwoFactorAuth'] as List).isNotEmpty) {
-          
           print('🔐 2FA 필요함. 쿠키 추출 시도...');
-          
+
           // 쿠키 저장 - 여러 가능한 헤더 키 시도
           String? cookies;
-          cookies = response.headers['set-cookie'] ?? 
-                   response.headers['Set-Cookie'] ??
-                   response.headers['SET-COOKIE'];
-          
+          cookies =
+              response.headers['set-cookie'] ??
+              response.headers['Set-Cookie'] ??
+              response.headers['SET-COOKIE'];
+
           if (cookies != null) {
             print('🍪 쿠키 헤더 발견: $cookies');
             _authCookie = _extractAuthCookie(cookies);
@@ -151,16 +156,18 @@ class AuthService {
               }
             }
           }
-          
+
           print('🔑 저장된 인증 쿠키: $_authCookie');
-          
+
           // 쿠키 저장
           if (_authCookie != null) {
             await _saveCookie(_authCookie!);
           }
-          
-          final twoFactorMethods = List<String>.from(responseData['requiresTwoFactorAuth']);
-          
+
+          final twoFactorMethods = List<String>.from(
+            responseData['requiresTwoFactorAuth'],
+          );
+
           return models.LoginResponse(
             success: false,
             message: '2FA_REQUIRED',
@@ -169,11 +176,12 @@ class AuthService {
             rawApiResponse: responseData,
           );
         }
-        
+
         // 일반 로그인 성공
         final user = models.User(
           id: responseData['id'] ?? '',
-          username: responseData['username'] ?? responseData['displayName'] ?? '',
+          username:
+              responseData['username'] ?? responseData['displayName'] ?? '',
           displayName: responseData['displayName'] ?? '',
           email: responseData['email'],
           avatarImageUrl: responseData['currentAvatarImageUrl'],
@@ -182,20 +190,19 @@ class AuthService {
           status: responseData['status'],
           statusDescription: responseData['statusDescription'],
           developerType: responseData['developerType'],
-          lastLogin: responseData['last_login'] != null 
-            ? DateTime.tryParse(responseData['last_login']) 
-            : null,
+          lastLogin: responseData['last_login'] != null
+              ? DateTime.tryParse(responseData['last_login'])
+              : null,
           platform: responseData['last_platform'],
           rawApiResponse: responseData,
         );
-        
+
         return models.LoginResponse(
           success: true,
           message: 'Login successful',
           user: user,
           token: 'vrchat_session',
         );
-
       } else if (response.statusCode == 401) {
         return const models.LoginResponse(
           success: false,
@@ -212,7 +219,6 @@ class AuthService {
           message: 'Login failed with status: ${response.statusCode}',
         );
       }
-
     } on SocketException {
       return const models.LoginResponse(
         success: false,
@@ -239,7 +245,7 @@ class AuthService {
   Future<models.LoginResponse> verify2FA(String code, String method) async {
     try {
       print('🔐 2FA 검증 시작 - 쿠키 상태: $_authCookie');
-      
+
       if (_authCookie == null || _authCookie!.isEmpty) {
         print('❌ 인증 쿠키가 없거나 비어있음');
         return const models.LoginResponse(
@@ -250,7 +256,7 @@ class AuthService {
 
       late http.Response response;
       late String endpoint;
-      
+
       // VRChat API 방식에 따라 엔드포인트 결정
       switch (method.toLowerCase()) {
         case 'totp':
@@ -276,25 +282,23 @@ class AuthService {
         'Cookie': 'auth=$_authCookie',
       };
       final body = jsonEncode({'code': code});
-      
+
       print('🚀 2FA 요청 전송');
       print('🌐 엔드포인트: $endpoint');
       print('📤 헤더: $headers');
       print('📤 바디: $body');
-      
-      response = await http.post(
-        Uri.parse(endpoint),
-        headers: headers,
-        body: body,
-      ).timeout(const Duration(seconds: 10));
-      
+
+      response = await http
+          .post(Uri.parse(endpoint), headers: headers, body: body)
+          .timeout(const Duration(seconds: 10));
+
       print('📨 2FA 응답 상태: ${response.statusCode}');
       print('📨 2FA 응답 헤더: ${response.headers}');
       print('📨 2FA 응답 본문: ${response.body}');
 
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body);
-        
+
         final user = models.User(
           id: userData['id'] ?? '',
           username: userData['username'] ?? userData['displayName'] ?? '',
@@ -306,18 +310,18 @@ class AuthService {
           status: userData['status'],
           statusDescription: userData['statusDescription'],
           developerType: userData['developerType'],
-          lastLogin: userData['last_login'] != null 
-            ? DateTime.tryParse(userData['last_login']) 
-            : null,
+          lastLogin: userData['last_login'] != null
+              ? DateTime.tryParse(userData['last_login'])
+              : null,
           platform: userData['last_platform'],
           rawApiResponse: userData,
         );
-        
+
         // 2FA 성공 후 쿠키 저장
         if (_authCookie != null) {
           await _saveCookie(_authCookie!);
         }
-        
+
         return models.LoginResponse(
           success: true,
           message: '2FA verification successful',
@@ -333,10 +337,10 @@ class AuthService {
         final errorData = jsonDecode(response.body);
         return models.LoginResponse(
           success: false,
-          message: '2FA verification failed: ${errorData['error']?['message'] ?? 'Unknown error'}',
+          message:
+              '2FA verification failed: ${errorData['error']?['message'] ?? 'Unknown error'}',
         );
       }
-
     } on SocketException {
       return const models.LoginResponse(
         success: false,
@@ -353,13 +357,15 @@ class AuthService {
   Future<void> logout() async {
     try {
       if (_authCookie != null) {
-        await http.put(
-          Uri.parse('$baseUrl/logout'),
-          headers: {
-            'User-Agent': 'VRCMX/1.0.0',
-            'Cookie': 'auth=$_authCookie',
-          },
-        ).timeout(const Duration(seconds: 5));
+        await http
+            .put(
+              Uri.parse('$baseUrl/logout'),
+              headers: {
+                'User-Agent': 'VRCMX/1.0.0',
+                'Cookie': 'auth=$_authCookie',
+              },
+            )
+            .timeout(const Duration(seconds: 5));
       }
     } catch (e) {
       print('Logout error: $e');
@@ -371,13 +377,13 @@ class AuthService {
 
   Future<bool> checkAuthStatus() async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/auth/user'),
-        headers: {
-          'User-Agent': 'VRCMX/1.0.0',
-        },
-      ).timeout(const Duration(seconds: 5));
-      
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/auth/user'),
+            headers: {'User-Agent': 'VRCMX/1.0.0'},
+          )
+          .timeout(const Duration(seconds: 5));
+
       return response.statusCode == 200;
     } catch (e) {
       return false;
@@ -389,9 +395,9 @@ class AuthService {
     try {
       // 먼저 저장된 쿠키를 로드
       await _loadSavedCookie();
-      
+
       print('🔄 자동 로그인 시도 - 쿠키 상태: $_authCookie');
-      
+
       if (_authCookie == null || _authCookie!.isEmpty) {
         return const models.LoginResponse(
           success: false,
@@ -399,20 +405,22 @@ class AuthService {
         );
       }
 
-      final response = await http.get(
-        Uri.parse('$baseUrl/auth/user'),
-        headers: {
-          'User-Agent': 'VRCMX/1.0.0',
-          'Cookie': 'auth=$_authCookie',
-        },
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/auth/user'),
+            headers: {
+              'User-Agent': 'VRCMX/1.0.0',
+              'Cookie': 'auth=$_authCookie',
+            },
+          )
+          .timeout(const Duration(seconds: 10));
 
       print('📨 자동 로그인 응답 상태: ${response.statusCode}');
       print('📨 자동 로그인 응답 본문: ${response.body}');
 
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body);
-        
+
         final user = models.User(
           id: userData['id'] ?? '',
           username: userData['username'] ?? userData['displayName'] ?? '',
@@ -424,22 +432,21 @@ class AuthService {
           status: userData['status'],
           statusDescription: userData['statusDescription'],
           developerType: userData['developerType'],
-          lastLogin: userData['last_login'] != null 
-            ? DateTime.tryParse(userData['last_login']) 
-            : null,
+          lastLogin: userData['last_login'] != null
+              ? DateTime.tryParse(userData['last_login'])
+              : null,
           platform: userData['last_platform'],
           rawApiResponse: userData,
         );
 
         print('✅ 자동 로그인 성공: ${user.displayName}');
-        
+
         return models.LoginResponse(
           success: true,
           message: 'Auto-login successful',
           user: user,
           token: 'vrchat_session_auto',
         );
-
       } else if (response.statusCode == 401) {
         print('❌ 세션 만료됨, 쿠키 삭제');
         await _clearCookie();
@@ -453,7 +460,6 @@ class AuthService {
           message: 'Auto-login failed with status: ${response.statusCode}',
         );
       }
-
     } on SocketException {
       return const models.LoginResponse(
         success: false,
@@ -475,7 +481,7 @@ class AuthService {
   }) async {
     try {
       print('👥 친구목록 요청 시작 - 쿠키 상태: $_authCookie');
-      
+
       if (_authCookie == null || _authCookie!.isEmpty) {
         return const FriendsListResponse(
           success: false,
@@ -501,7 +507,8 @@ class AuthService {
       print('🌐 엔드포인트: $uri');
       print('📤 헤더: $headers');
 
-      final response = await http.get(uri, headers: headers)
+      final response = await http
+          .get(uri, headers: headers)
           .timeout(const Duration(seconds: 10));
 
       print('📨 친구목록 응답 상태: ${response.statusCode}');
@@ -509,17 +516,17 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final List<dynamic> friendsData = jsonDecode(response.body);
-        
+
         final friends = friendsData.map<Friend>((friendJson) {
           // status 기반으로 온라인 상태 판별
           final status = friendJson['status'] as String?;
           bool isOnline = status != null && status != 'offline';
-          
+
           // location 기반으로 인스턴스 정보 파싱
           final location = friendJson['location'] as String?;
           String? instanceId;
           String? worldId;
-          
+
           if (location != null && location.contains(':')) {
             final parts = location.split(':');
             if (parts.length >= 2) {
@@ -527,17 +534,18 @@ class AuthService {
               instanceId = parts[1];
             }
           }
-          
+
           return Friend(
             id: friendJson['id'] ?? '',
             displayName: friendJson['displayName'] ?? '',
             bio: friendJson['bio'],
-            bioLinks: friendJson['bioLinks'] != null 
+            bioLinks: friendJson['bioLinks'] != null
                 ? List<String>.from(friendJson['bioLinks'])
                 : null,
             currentAvatarImageUrl: friendJson['currentAvatarImageUrl'],
-            currentAvatarThumbnailImageUrl: friendJson['currentAvatarThumbnailImageUrl'],
-            currentAvatarTags: friendJson['currentAvatarTags'] != null 
+            currentAvatarThumbnailImageUrl:
+                friendJson['currentAvatarThumbnailImageUrl'],
+            currentAvatarTags: friendJson['currentAvatarTags'] != null
                 ? List<String>.from(friendJson['currentAvatarTags'])
                 : null,
             developerType: friendJson['developerType'],
@@ -546,21 +554,22 @@ class AuthService {
             imageUrl: friendJson['imageUrl'],
             lastPlatform: friendJson['last_platform'],
             location: location,
-            lastLogin: friendJson['last_login'] != null 
+            lastLogin: friendJson['last_login'] != null
                 ? DateTime.tryParse(friendJson['last_login'])
                 : null,
-            lastActivity: friendJson['last_activity'] != null 
+            lastActivity: friendJson['last_activity'] != null
                 ? DateTime.tryParse(friendJson['last_activity'])
                 : null,
-            lastMobile: friendJson['last_mobile'] != null 
+            lastMobile: friendJson['last_mobile'] != null
                 ? DateTime.tryParse(friendJson['last_mobile'])
                 : null,
             platform: friendJson['platform'],
             profilePicOverride: friendJson['profilePicOverride'],
-            profilePicOverrideThumbnail: friendJson['profilePicOverrideThumbnail'],
+            profilePicOverrideThumbnail:
+                friendJson['profilePicOverrideThumbnail'],
             status: friendJson['status'],
             statusDescription: friendJson['statusDescription'],
-            tags: friendJson['tags'] != null 
+            tags: friendJson['tags'] != null
                 ? List<String>.from(friendJson['tags'])
                 : null,
             userIcon: friendJson['userIcon'],
@@ -581,7 +590,6 @@ class AuthService {
           total: friends.length,
           rawApiResponse: {'friends': friendsData},
         );
-
       } else if (response.statusCode == 401) {
         return const FriendsListResponse(
           success: false,
@@ -591,10 +599,10 @@ class AuthService {
         final errorData = jsonDecode(response.body);
         return FriendsListResponse(
           success: false,
-          message: '친구목록 가져오기 실패: ${errorData['error']?['message'] ?? 'Unknown error'}',
+          message:
+              '친구목록 가져오기 실패: ${errorData['error']?['message'] ?? 'Unknown error'}',
         );
       }
-
     } on SocketException {
       return const FriendsListResponse(
         success: false,
@@ -610,7 +618,9 @@ class AuthService {
   }
 
   // 모든 친구를 가져오기 (pagination 처리)
-  Future<FriendsListResponse> getAllFriends({bool includeOffline = false}) async {
+  Future<FriendsListResponse> getAllFriends({
+    bool includeOffline = false,
+  }) async {
     try {
       final List<Friend> allFriends = [];
       int offset = 0;
@@ -619,7 +629,7 @@ class AuthService {
 
       while (hasMore) {
         print('👥 친구 목록 페이지 요청: offset=$offset, limit=$limit');
-        
+
         final response = await getFriends(
           offset: offset,
           limit: limit,
@@ -632,7 +642,7 @@ class AuthService {
 
         final friends = response.friends;
         allFriends.addAll(friends);
-        
+
         print('👥 현재까지 ${allFriends.length}명의 친구를 불러왔습니다.');
 
         // 더 가져올 친구가 있는지 확인
@@ -651,7 +661,6 @@ class AuthService {
         friends: allFriends,
         total: allFriends.length,
       );
-
     } catch (e) {
       print('❌ 모든 친구 목록 가져오기 오류: $e');
       return FriendsListResponse(
@@ -661,129 +670,31 @@ class AuthService {
     }
   }
 
-  // 월드 정보 가져오기
-  Future<String?> getWorldName(String worldId) async {
-    try {
-      await _loadSavedCookie();
-      
-      if (_authCookie == null || _authCookie!.isEmpty) {
-        print('❌ 월드 정보 요청 실패: 인증 쿠키 없음');
-        return null;
-      }
-
-      final response = await http.get(
-        Uri.parse('$baseUrl/worlds/$worldId'),
-        headers: {
-          'User-Agent': 'VRCMX/1.0.0',
-          'Cookie': 'auth=$_authCookie',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final worldData = jsonDecode(response.body);
-        return worldData['name'] as String?;
-      } else {
-        print('❌ 월드 정보 요청 실패: ${response.statusCode}');
-        return null;
-      }
-    } catch (e) {
-      print('❌ 월드 정보 가져오기 오류: $e');
-      return null;
-    }
-  }
-
   /// 특정 알림을 읽음으로 표시
   Future<bool> markNotificationAsRead(String notificationId) async {
     try {
       await _loadSavedCookie();
-      
+
       if (_authCookie == null || _authCookie!.isEmpty) {
         return false;
       }
-      
-      final response = await http.put(
-        Uri.parse('$baseUrl/auth/user/notifications/$notificationId'),
-        headers: {
-          'Content-Type': 'application/json',
-          'User-Agent': 'VRCMX/1.0.0',
-          'Cookie': 'auth=$_authCookie',
-        },
-        body: jsonEncode({'seen': true}),
-      ).timeout(const Duration(seconds: 10));
-      
+
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/auth/user/notifications/$notificationId'),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'VRCMX/1.0.0',
+              'Cookie': 'auth=$_authCookie',
+            },
+            body: jsonEncode({'seen': true}),
+          )
+          .timeout(const Duration(seconds: 10));
+
       return response.statusCode == 200;
     } catch (e) {
       print('❌ 알림 읽음 처리 오류: $e');
       return false;
-    }
-  }
-
-  /// 친구 요청 수락
-  Future<bool> acceptFriendRequest(String notificationId) async {
-    try {
-      await _loadSavedCookie();
-      
-      if (_authCookie == null || _authCookie!.isEmpty) {
-        return false;
-      }
-      
-      final response = await http.put(
-        Uri.parse('$baseUrl/auth/user/notifications/$notificationId/accept'),
-        headers: {
-          'User-Agent': 'VRCMX/1.0.0',
-          'Cookie': 'auth=$_authCookie',
-        },
-      ).timeout(const Duration(seconds: 10));
-      
-      return response.statusCode == 200;
-    } catch (e) {
-      print('❌ 친구 요청 수락 오류: $e');
-      return false;
-    }
-  }
-
-  /// 웹소켓 엔드포인트 HTTP 테스트
-  Future<void> testWebSocketEndpoint() async {
-    try {
-      await _loadSavedCookie();
-      
-      if (_authCookie == null || _authCookie!.isEmpty) {
-        print('❌ 웹소켓 테스트 실패: 인증 쿠키 없음');
-        return;
-      }
-
-      String authToken = _authCookie!;
-      if (!authToken.startsWith('authcookie_')) {
-        authToken = 'authcookie_$authToken';
-      }
-
-      print('🔍 웹소켓 엔드포인트 HTTP 테스트 시작...');
-      print('🔑 사용할 authToken: $authToken');
-      
-      // HTTP GET 요청으로 웹소켓 엔드포인트 테스트
-      final response = await http.get(
-        Uri.parse('https://pipeline.vrchat.cloud/?authToken=$authToken'),
-        headers: {
-          'Accept-Encoding': 'gzip, deflate, br, zstd',
-          'Accept-Language': 'ko,en;q=0.9,en-US;q=0.8',
-          'Cache-Control': 'no-cache',
-          'Connection': 'Upgrade',
-          'Origin': 'https://vrchat.com',
-          'Pragma': 'no-cache',
-          'Sec-WebSocket-Extensions': 'permessage-deflate; client_max_window_bits',
-          'Sec-WebSocket-Key': '9pstKgxcIW22ICxJWJdBOQ==',
-          'Sec-WebSocket-Version': '13',
-          'Upgrade': 'websocket',
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      print('🌐 HTTP 응답 상태: ${response.statusCode}');
-      print('📋 HTTP 응답 헤더: ${response.headers}');
-      print('📄 HTTP 응답 내용: ${response.body}');
-      
-    } catch (e) {
-      print('❌ 웹소켓 엔드포인트 HTTP 테스트 오류: $e');
     }
   }
 }

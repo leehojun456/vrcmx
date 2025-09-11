@@ -1,180 +1,348 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/auth_state.dart';
-import '../viewmodels/auth_viewmodel.dart';
+import 'package:get/get.dart';
+import 'package:vrcmx/models/auth_state.dart';
+import '../controllers/auth_controller.dart';
 import 'two_factor_page.dart';
 import 'home_screen.dart';
 
-class LoginPage extends ConsumerStatefulWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
   @override
-  ConsumerState<LoginPage> createState() => _LoginPageState();
+  State<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends ConsumerState<LoginPage> {
+class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  late final AuthController _auth;
+  Worker? _worker;
+
+  @override
+  void initState() {
+    super.initState();
+    _auth = Get.find<AuthController>();
+  }
 
   @override
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _worker?.dispose();
     super.dispose();
   }
 
   void _handleLogin() {
     if (_formKey.currentState?.validate() ?? false) {
-      ref.read(authViewModelProvider.notifier).login(
-            _usernameController.text.trim(),
-            _passwordController.text,
-          );
+      _auth.login(_usernameController.text.trim(), _passwordController.text);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authViewModelProvider);
-
-    ref.listen<AuthState>(authViewModelProvider, (previous, next) {
+    _worker ??= ever<AuthState>(_auth.state, (next) {
       next.when(
         initial: () {},
         loading: () {},
         authenticated: (user) {
-          // 로그인 성공 시 홈 화면으로 이동
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
         },
         requires2FA: (methods) {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (context) => TwoFactorPage(availableMethods: methods),
-            ),
-          );
+          _show2FAMethodDialog(methods);
         },
         error: (message) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text(message), backgroundColor: Colors.red),
           );
         },
       );
     });
 
+    final authState = _auth.state.value;
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Icon(
-                    Icons.person_outline,
-                    size: 100,
-                    color: Colors.blue[700],
-                  ),
-                  const SizedBox(height: 48),
-                  Text(
-                    'VRCMX',
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Colors.blue[700],
-                        ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'VRChat Mobile eXperience',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+        child: Stack(
+          children: [
+            Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(
+                            'VRC',
+                            style: Theme.of(context).textTheme.headlineLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black,
+                                  fontSize: 72,
+                                ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 0,
+                            ),
+                            decoration: BoxDecoration(color: Colors.black),
+                            child: Text(
+                              'MX',
+                              style: Theme.of(context).textTheme.headlineLarge
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    fontSize: 72,
+                                  ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'VRChat Mobile eXperience',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                           color: Colors.grey[600],
                         ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 48),
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: InputDecoration(
-                      labelText: 'Username',
-                      prefixIcon: const Icon(Icons.person),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        textAlign: TextAlign.left,
                       ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter your username';
-                      }
-                      return null;
-                    },
-                    textInputAction: TextInputAction.next,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
+                      const SizedBox(height: 72),
+                      TextFormField(
+                        controller: _usernameController,
+                        decoration: InputDecoration(
+                          labelText: 'Username',
+                          labelStyle: MaterialStateTextStyle.resolveWith((
+                            states,
+                          ) {
+                            if (states.contains(MaterialState.focused)) {
+                              return const TextStyle(color: Colors.black);
+                            }
+                            return TextStyle(color: Colors.grey[400]);
+                          }),
+                          prefixIcon: Icon(
+                            Icons.person,
+                            color: Colors.grey[400],
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[400]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[400]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.black),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          hintStyle: TextStyle(color: Colors.grey[400]),
+                          prefixIconColor: Colors.grey[400],
+                          focusColor: Colors.black,
                         ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return '아이디를 입력하세요';
+                          }
+                          return null;
                         },
+                        textInputAction: TextInputAction.next,
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          labelText: 'Password',
+                          labelStyle: MaterialStateTextStyle.resolveWith((
+                            states,
+                          ) {
+                            if (states.contains(MaterialState.focused)) {
+                              return const TextStyle(color: Colors.black);
+                            }
+                            return TextStyle(color: Colors.grey[400]);
+                          }),
+                          prefixIcon: Icon(Icons.lock, color: Colors.grey[400]),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility
+                                  : Icons.visibility_off,
+                              color: Colors.grey[400],
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _obscurePassword = !_obscurePassword;
+                              });
+                            },
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[400]!),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey[400]!),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.black),
+                          ),
+                          filled: true,
+                          fillColor: Colors.white,
+                          hintStyle: TextStyle(color: Colors.grey[400]),
+                          prefixIconColor: Colors.grey[400],
+                          focusColor: Colors.black,
+                        ),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) {
+                            return '비밀번호를 입력하세요';
+                          }
+                          return null;
+                        },
+                        textInputAction: TextInputAction.done,
+                        onFieldSubmitted: (_) => _handleLogin(),
                       ),
-                      filled: true,
-                      fillColor: Colors.white,
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
-                      }
-                      return null;
-                    },
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _handleLogin(),
+                      const SizedBox(height: 24),
+                      authState.when(
+                        initial: () => _buildLoginButton(),
+                        loading: () => _buildLoadingButton(),
+                        authenticated: (user) =>
+                            _buildLoginButton(), // 이미 홈으로 이동하므로 로그인 버튼 표시
+                        requires2FA: (methods) => _buildLoginButton(),
+                        error: (message) => _buildLoginButton(),
+                      ),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () => _auth.clearError(),
+                        child: const Text('Forgot Password?'),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  authState.when(
-                    initial: () => _buildLoginButton(),
-                    loading: () => _buildLoadingButton(),
-                    authenticated: (user) => _buildLoginButton(), // 이미 홈으로 이동하므로 로그인 버튼 표시
-                    requires2FA: (methods) => _buildLoginButton(),
-                    error: (message) => _buildLoginButton(),
-                  ),
-                  const SizedBox(height: 16),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 16,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                child: Text(
+                  'VRCMX는 친구 관계에 도움을 줄 만한 정보를 \n제공하는 보조 어플리케이션입니다.\n\nVRCMX는 VRChat이 보증하지 않고,VRChat 개발/운영에 \n공식적으로 관련한 사람의 견해나 의견을 반영하지 않습니다.\n\nYEONUBI 혹은 C A L B는 \nVRCMX로 인한 문제의 책임을 지지 않습니다. \n본인의 책임하에 사용하시기 바랍니다! \n\nVRChat은 VRChat Inc.의 상표입니다. VRChat © VRChat Inc',
+                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _show2FAMethodDialog(List<String> methods) {
+    String selected = methods.isNotEmpty ? methods.first : 'totp';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Two-Factor Authentication Required',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Select a verification method to continue.',
+                style: TextStyle(color: Colors.black54),
+              ),
+              const SizedBox(height: 12),
+              if (methods.isEmpty)
+                const Text('No methods available, defaulting to TOTP.'),
+              ...((methods.isNotEmpty ? methods : ['totp']).map((m) {
+                String display;
+                switch (m.toLowerCase()) {
+                  case 'totp':
+                  case 'authenticator':
+                    display = 'Authenticator App (TOTP)';
+                    break;
+                  case 'otp':
+                  case 'emailotp':
+                  case 'email':
+                    display = 'Email OTP';
+                    break;
+                  case 'recovery':
+                    display = 'Recovery Code';
+                    break;
+                  default:
+                    display = m.toUpperCase();
+                }
+                return RadioListTile<String>(
+                  title: Text(display),
+                  value: m,
+                  groupValue: selected,
+                  onChanged: (v) {
+                    setState(() {
+                      selected = v ?? selected;
+                    });
+                  },
+                );
+              })),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
                   TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Cancel'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
                     onPressed: () {
-                      ref.read(authViewModelProvider.notifier).clearError();
+                      Navigator.of(context).pop();
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => TwoFactorPage(
+                            availableMethods: methods,
+                            initialMethod: selected,
+                          ),
+                        ),
+                      );
                     },
-                    child: const Text('Forgot Password?'),
+                    child: const Text('Continue'),
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -182,12 +350,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     return ElevatedButton(
       onPressed: _handleLogin,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue[700],
+        backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0, // 그림자 제거
+        shadowColor: Colors.transparent, // 그림자 완전 제거
       ),
       child: const Text(
         'Login',
@@ -202,9 +370,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.grey[400],
         padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -218,13 +384,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             ),
           ),
           SizedBox(width: 12),
-          Text(
-            'Logging in...',
-            style: TextStyle(fontSize: 16),
-          ),
+          Text('Logging in...', style: TextStyle(fontSize: 16)),
         ],
       ),
     );
   }
-
 }

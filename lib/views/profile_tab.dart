@@ -1,18 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get/get.dart';
 import '../models/auth_state.dart';
-import '../viewmodels/auth_viewmodel.dart';
+import '../controllers/auth_controller.dart';
 import '../widgets/vrchat_network_image.dart';
 import 'api_response_view.dart';
 import 'login_page.dart';
 
-class ProfileTab extends ConsumerWidget {
+class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authViewModelProvider);
+  Widget build(BuildContext context) {
+    final auth = Get.find<AuthController>();
+    final authState = auth.state.value;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -34,21 +35,21 @@ class ProfileTab extends ConsumerWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.red),
-            onPressed: () => _showLogoutDialog(context, ref),
+            onPressed: () => _showLogoutDialog(context),
           ),
         ],
       ),
       body: authState.when(
         initial: () => const Center(child: Text('로그인이 필요합니다.')),
         loading: () => const Center(child: CircularProgressIndicator()),
-        authenticated: (user) => _buildProfileContent(context, ref, user),
+        authenticated: (user) => _buildProfileContent(context, user),
         requires2FA: (methods) => const Center(child: Text('2차 인증이 필요합니다.')),
         error: (message) => Center(child: Text('오류: $message')),
       ),
     );
   }
 
-  Widget _buildProfileContent(BuildContext context, WidgetRef ref, user) {
+  Widget _buildProfileContent(BuildContext context, user) {
     return SingleChildScrollView(
       child: Column(
         children: [
@@ -259,7 +260,8 @@ class ProfileTab extends ConsumerWidget {
         '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
-  void _showLogoutDialog(BuildContext context, WidgetRef ref) {
+  void _showLogoutDialog(BuildContext context) {
+    final auth = Get.find<AuthController>();
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -272,9 +274,9 @@ class ProfileTab extends ConsumerWidget {
               child: const Text('취소'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop();
-                ref.read(authViewModelProvider.notifier).logout();
+                await auth.logout();
 
                 // 로그인 페이지로 이동
                 Navigator.of(context).pushAndRemoveUntil(

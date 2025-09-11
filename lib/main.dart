@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get/get.dart';
 import 'views/splash_screen.dart';
-import 'providers/websocket_provider.dart';
+import 'bindings/app_bindings.dart';
 
 void main() {
-  runApp(const ProviderScope(child: MainApp()));
+  runApp(const MainApp());
 }
 
-class MainApp extends ConsumerWidget {
+class MainApp extends StatelessWidget {
   const MainApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // 웹소켓 자동 연결 시작
-    ref.watch(webSocketAutoConnectProvider);
-    
-    return MaterialApp(
+  Widget build(BuildContext context) {
+    // GetX 초기 바인딩 (AuthService, WebSocketService, FriendsController)
+    return GetMaterialApp(
+      initialBinding: AppBindings(),
       title: 'VRCMX',
       theme: ThemeData(
         primaryColor: Colors.white,

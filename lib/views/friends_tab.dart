@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/friend.dart';
 import '../services/auth_service.dart';
+import 'package:get/get.dart';
+import '../controllers/friends_controller.dart';
 import '../widgets/vrchat_network_image.dart';
 
 class FriendsTab extends StatefulWidget {
@@ -14,9 +16,8 @@ class FriendsTab extends StatefulWidget {
 }
 
 class _FriendsTabState extends State<FriendsTab> {
-  List<Friend> _friends = [];
+  final FriendsController c = Get.find<FriendsController>();
   List<Friend> _filteredFriends = [];
-  bool _isLoading = true;
   String _errorMessage = '';
   final TextEditingController _searchController = TextEditingController();
   String _selectedStatus = 'Online'; // Online, Active, Ask Me, Offline
@@ -38,7 +39,6 @@ class _FriendsTabState extends State<FriendsTab> {
   @override
   void initState() {
     super.initState();
-    _loadFriends();
     _searchController.addListener(_filterFriends);
 
     // PageController 초기화
@@ -55,59 +55,16 @@ class _FriendsTabState extends State<FriendsTab> {
 
   Future<void> _loadFriends() async {
     setState(() {
-      _isLoading = true;
       _errorMessage = '';
     });
-
-    try {
-      // 온라인과 오프라인 친구 모두 가져오기
-      final onlineResponse = await widget.authService.getAllFriends(
-        includeOffline: false,
-      );
-      final offlineResponse = await widget.authService.getAllFriends(
-        includeOffline: true,
-      );
-
-      if (onlineResponse.success && offlineResponse.success) {
-        // 중복 제거를 위한 Map 사용
-        final allFriendsMap = <String, Friend>{};
-
-        // 온라인 친구들 추가
-        for (final friend in onlineResponse.friends) {
-          allFriendsMap[friend.id] = friend;
-        }
-
-        // 오프라인 친구들 추가 (온라인 친구와 중복되지 않은 것만)
-        for (final friend in offlineResponse.friends) {
-          allFriendsMap[friend.id] = friend;
-        }
-
-        setState(() {
-          _friends = allFriendsMap.values.toList();
-          _isLoading = false;
-        });
-        _filterFriends();
-      } else {
-        setState(() {
-          _errorMessage =
-              onlineResponse.message ??
-              offlineResponse.message ??
-              '친구목록을 가져올 수 없습니다';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = '네트워크 오류: ${e.toString()}';
-        _isLoading = false;
-      });
-    }
+    await c.refreshFriends();
   }
 
   void _filterFriends() {
     final query = _searchController.text.toLowerCase();
+    final all = c.friends;
     setState(() {
-      _filteredFriends = _friends.where((friend) {
+      _filteredFriends = all.where((friend) {
         final matchesSearch =
             query.isEmpty ||
             friend.displayName.toLowerCase().contains(query) ||
@@ -359,23 +316,6 @@ class _FriendsTabState extends State<FriendsTab> {
     return location;
   }
 
-  // 월드 이름을 비동기로 가져와서 캐시에 저장 - 비활성화
-  Future<void> _fetchWorldName(String worldId) async {
-    // 월드 정보 API 호출 비활성화
-    // if (_worldNameCache.containsKey(worldId)) return;
-
-    // try {
-    //   final worldName = await widget.authService.getWorldName(worldId);
-    //   if (worldName != null && mounted) {
-    //     setState(() {
-    //       _worldNameCache[worldId] = worldName;
-    //     });
-    //   }
-    // } catch (e) {
-    //   print('월드 이름 가져오기 실패: $e');
-    // }
-  }
-
   void _showFriendDetails(Friend friend) {
     showModalBottomSheet(
       context: context,
@@ -539,7 +479,7 @@ class _FriendsTabState extends State<FriendsTab> {
   @override
   Widget build(BuildContext context) {
     final currentFilterCount = _filteredFriends.length;
-    final totalCount = _friends.length;
+    final totalCount = c.friends.length;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -563,167 +503,177 @@ class _FriendsTabState extends State<FriendsTab> {
         ),
         actions: [
           // 로딩 중일 때는 스피너 표시, 아닐 때는 새로고침 버튼
-          _isLoading
-              ? const Padding(
-                  padding: EdgeInsets.all(16.0),
-                  child: SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
-                    ),
-                  ),
-                )
-              : IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.black),
-                  onPressed: _loadFriends,
-                ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // 검색 및 필터
-          Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search friends...',
-                    hintStyle: const TextStyle(color: Colors.black54),
-                    prefixIcon: const Icon(Icons.search, color: Colors.black54),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: const BorderSide(color: Colors.black12),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: const BorderSide(color: Colors.black12),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: const BorderSide(
-                        color: Colors.black,
-                        width: 1.5,
+          Obx(
+            () => c.loading.value
+                ? const Padding(
+                    padding: EdgeInsets.all(16.0),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.black),
                       ),
                     ),
-                    filled: true,
-                    fillColor: Colors.grey[50],
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 16,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _buildStatusFilterButtons(),
-              ],
-            ),
-          ),
-          // 친구목록 - PageView로 감싸서 스와이프 가능하게 수정
-          Expanded(
-            child: _errorMessage.isNotEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.error,
-                          size: 64,
-                          color: Colors.black54,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          _errorMessage,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(color: Colors.black87),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _loadFriends,
-                          child: const Text('다시 시도'),
-                        ),
-                      ],
-                    ),
                   )
-                : PageView.builder(
-                    controller: _pageController,
-                    onPageChanged: _onPageChanged,
-                    itemCount: _statusOptions.length,
-                    itemBuilder: (context, index) {
-                      // 각 페이지에서 해당 상태의 친구들만 표시
-                      final statusKey = _statusOptions[index]['key']!;
-                      final filteredFriends = _friends.where((friend) {
-                        final matchesSearch =
-                            _searchController.text.isEmpty ||
-                            friend.displayName.toLowerCase().contains(
-                              _searchController.text.toLowerCase(),
-                            ) ||
-                            friend.id.toLowerCase().contains(
-                              _searchController.text.toLowerCase(),
-                            );
-
-                        final matchesStatus = _matchesStatusForKey(
-                          friend,
-                          statusKey,
-                        );
-
-                        return matchesSearch && matchesStatus;
-                      }).toList();
-
-                      // 정렬
-                      filteredFriends.sort((a, b) {
-                        final aOnline = a.status != 'offline';
-                        final bOnline = b.status != 'offline';
-
-                        if (aOnline && !bOnline) return -1;
-                        if (!aOnline && bOnline) return 1;
-                        return a.displayName.compareTo(b.displayName);
-                      });
-
-                      return filteredFriends.isEmpty && !_isLoading
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.people_outline,
-                                    size: 64,
-                                    color: Colors.black54,
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    _searchController.text.isNotEmpty
-                                        ? 'No friends found matching "${_searchController.text}"'
-                                        : _friends.isEmpty
-                                        ? '친구가 없습니다'
-                                        : 'No ${statusKey.toLowerCase()} friends found',
-                                    style: const TextStyle(
-                                      color: Colors.black54,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                          : RefreshIndicator(
-                              onRefresh: _loadFriends,
-                              child: ListView.builder(
-                                itemCount: filteredFriends.length,
-                                itemBuilder: (context, friendIndex) {
-                                  return _buildFriendCard(
-                                    filteredFriends[friendIndex],
-                                  );
-                                },
-                              ),
-                            );
-                    },
+                : IconButton(
+                    icon: const Icon(Icons.refresh, color: Colors.black),
+                    onPressed: _loadFriends,
                   ),
           ),
         ],
       ),
+      body: Obx(() {
+        final isLoading = c.loading.value;
+        _errorMessage = c.errorMessage.value;
+        return Column(
+          children: [
+            // 검색 및 필터
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Search friends...',
+                      hintStyle: const TextStyle(color: Colors.black54),
+                      prefixIcon: const Icon(
+                        Icons.search,
+                        color: Colors.black54,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: const BorderSide(color: Colors.black12),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: const BorderSide(color: Colors.black12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: const BorderSide(
+                          color: Colors.black,
+                          width: 1.5,
+                        ),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[50],
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildStatusFilterButtons(),
+                ],
+              ),
+            ),
+            // 친구목록 - PageView로 감싸서 스와이프 가능하게 수정
+            Expanded(
+              child: _errorMessage.isNotEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error,
+                            size: 64,
+                            color: Colors.black54,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _errorMessage,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.black87),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            onPressed: _loadFriends,
+                            child: const Text('다시 시도'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : PageView.builder(
+                      controller: _pageController,
+                      onPageChanged: _onPageChanged,
+                      itemCount: _statusOptions.length,
+                      itemBuilder: (context, index) {
+                        // 각 페이지에서 해당 상태의 친구들만 표시
+                        final statusKey = _statusOptions[index]['key']!;
+                        final all = c.friends;
+                        final filteredFriends = all.where((friend) {
+                          final matchesSearch =
+                              _searchController.text.isEmpty ||
+                              friend.displayName.toLowerCase().contains(
+                                _searchController.text.toLowerCase(),
+                              ) ||
+                              friend.id.toLowerCase().contains(
+                                _searchController.text.toLowerCase(),
+                              );
+
+                          final matchesStatus = _matchesStatusForKey(
+                            friend,
+                            statusKey,
+                          );
+
+                          return matchesSearch && matchesStatus;
+                        }).toList();
+
+                        // 정렬
+                        filteredFriends.sort((a, b) {
+                          final aOnline = a.status != 'offline';
+                          final bOnline = b.status != 'offline';
+
+                          if (aOnline && !bOnline) return -1;
+                          if (!aOnline && bOnline) return 1;
+                          return a.displayName.compareTo(b.displayName);
+                        });
+
+                        return filteredFriends.isEmpty && !isLoading
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(
+                                      Icons.people_outline,
+                                      size: 64,
+                                      color: Colors.black54,
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      _searchController.text.isNotEmpty
+                                          ? 'No friends found matching "${_searchController.text}"'
+                                          : all.isEmpty
+                                          ? '친구가 없습니다'
+                                          : 'No ${statusKey.toLowerCase()} friends found',
+                                      style: const TextStyle(
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : RefreshIndicator(
+                                onRefresh: _loadFriends,
+                                child: ListView.builder(
+                                  itemCount: filteredFriends.length,
+                                  itemBuilder: (context, friendIndex) {
+                                    return _buildFriendCard(
+                                      filteredFriends[friendIndex],
+                                    );
+                                  },
+                                ),
+                              );
+                      },
+                    ),
+            ),
+          ],
+        );
+      }),
     );
   }
 }

@@ -1,46 +1,50 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get/get.dart';
 import '../models/auth_state.dart';
-import '../viewmodels/auth_viewmodel.dart';
+import '../controllers/auth_controller.dart';
 import 'home_screen.dart';
 
-class TwoFactorPage extends ConsumerStatefulWidget {
+class TwoFactorPage extends StatefulWidget {
   final List<String> availableMethods;
+  final String? initialMethod;
   
   const TwoFactorPage({
     super.key,
     required this.availableMethods,
+    this.initialMethod,
   });
 
   @override
-  ConsumerState<TwoFactorPage> createState() => _TwoFactorPageState();
+  State<TwoFactorPage> createState() => _TwoFactorPageState();
 }
 
-class _TwoFactorPageState extends ConsumerState<TwoFactorPage> {
+class _TwoFactorPageState extends State<TwoFactorPage> {
   final _formKey = GlobalKey<FormState>();
   final _codeController = TextEditingController();
   String _selectedMethod = '';
+  late final AuthController _auth;
+  Worker? _worker;
 
   @override
   void initState() {
     super.initState();
-    _selectedMethod = widget.availableMethods.isNotEmpty 
-        ? widget.availableMethods.first 
-        : 'totp';
+    _selectedMethod = widget.initialMethod ??
+        (widget.availableMethods.isNotEmpty ? widget.availableMethods.first : 'totp');
   }
 
   @override
   void dispose() {
     _codeController.dispose();
+    _worker?.dispose();
     super.dispose();
   }
 
   void _handle2FA() {
     if (_formKey.currentState?.validate() ?? false) {
-      ref.read(authViewModelProvider.notifier).verify2FA(
-            _codeController.text.trim(),
-            _selectedMethod,
-          );
+      _auth.verify2FA(
+        _codeController.text.trim(),
+        _selectedMethod,
+      );
     }
   }
 
@@ -78,14 +82,12 @@ class _TwoFactorPageState extends ConsumerState<TwoFactorPage> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = ref.watch(authViewModelProvider);
-
-    ref.listen<AuthState>(authViewModelProvider, (previous, next) {
+    _auth = Get.find<AuthController>();
+    _worker ??= ever<AuthState>(_auth.state, (next) {
       next.when(
         initial: () {},
         loading: () {},
         authenticated: (user) {
-          // 2FA 성공 시 홈 화면으로 이동
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
             (route) => false,
@@ -94,14 +96,13 @@ class _TwoFactorPageState extends ConsumerState<TwoFactorPage> {
         requires2FA: (methods) {},
         error: (message) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(message),
-              backgroundColor: Colors.red,
-            ),
+            SnackBar(content: Text(message), backgroundColor: Colors.red),
           );
         },
       );
     });
+
+    final authState = _auth.state.value;
 
     return Scaffold(
       appBar: AppBar(

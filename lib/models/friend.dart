@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'package:json_annotation/json_annotation.dart';
 
 part 'friend.freezed.dart';
 part 'friend.g.dart';
@@ -7,21 +8,34 @@ part 'friend.g.dart';
 class Friend with _$Friend {
   const factory Friend({
     required String id,
-    required String username,
     required String displayName,
     String? bio,
+    List<String>? bioLinks,
     String? currentAvatarImageUrl,
+    String? currentAvatarThumbnailImageUrl,
+    List<String>? currentAvatarTags,
+    String? developerType,
+    String? friendKey,
+    @Default(true) bool isFriend,
+    String? imageUrl,
+    @JsonKey(name: 'last_platform') String? lastPlatform,
+    String? location,
+    @JsonKey(name: 'last_login') DateTime? lastLogin,
+    @JsonKey(name: 'last_activity') DateTime? lastActivity,
+    @JsonKey(name: 'last_mobile') DateTime? lastMobile,
+    String? platform,
+    String? profilePicOverride,
+    String? profilePicOverrideThumbnail,
     String? status,
     String? statusDescription,
-    String? location, // world 또는 offline, private 등
+    List<String>? tags,
+    String? userIcon,
+    // 계산된 필드들
+    @Default(false) bool isOnline,
     String? instanceId,
     String? worldId,
-    DateTime? lastLogin,
-    String? platform,
-    @Default(false) bool isOnline,
-    String? developerType,
-    List<String>? tags,
-    String? friendKey,
+    String? travelingToLocation,
+    @Default(false) bool canRequestInvite,
     // VRChat API 원본 응답 저장
     Map<String, dynamic>? rawApiResponse,
   }) = _Friend;
@@ -39,6 +53,6 @@ class FriendsListResponse with _$FriendsListResponse {
     Map<String, dynamic>? rawApiResponse,
   }) = _FriendsListResponse;
 
-  factory FriendsListResponse.fromJson(Map<String, dynamic> json) => 
+  factory FriendsListResponse.fromJson(Map<String, dynamic> json) =>
       _$FriendsListResponseFromJson(json);
 }

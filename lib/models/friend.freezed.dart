@@ -22,22 +22,38 @@ Friend _$FriendFromJson(Map<String, dynamic> json) {
 /// @nodoc
 mixin _$Friend {
   String get id => throw _privateConstructorUsedError;
-  String get username => throw _privateConstructorUsedError;
   String get displayName => throw _privateConstructorUsedError;
   String? get bio => throw _privateConstructorUsedError;
+  List<String>? get bioLinks => throw _privateConstructorUsedError;
   String? get currentAvatarImageUrl => throw _privateConstructorUsedError;
+  String? get currentAvatarThumbnailImageUrl =>
+      throw _privateConstructorUsedError;
+  List<String>? get currentAvatarTags => throw _privateConstructorUsedError;
+  String? get developerType => throw _privateConstructorUsedError;
+  String? get friendKey => throw _privateConstructorUsedError;
+  bool get isFriend => throw _privateConstructorUsedError;
+  String? get imageUrl => throw _privateConstructorUsedError;
+  @JsonKey(name: 'last_platform')
+  String? get lastPlatform => throw _privateConstructorUsedError;
+  String? get location => throw _privateConstructorUsedError;
+  @JsonKey(name: 'last_login')
+  DateTime? get lastLogin => throw _privateConstructorUsedError;
+  @JsonKey(name: 'last_activity')
+  DateTime? get lastActivity => throw _privateConstructorUsedError;
+  @JsonKey(name: 'last_mobile')
+  DateTime? get lastMobile => throw _privateConstructorUsedError;
+  String? get platform => throw _privateConstructorUsedError;
+  String? get profilePicOverride => throw _privateConstructorUsedError;
+  String? get profilePicOverrideThumbnail => throw _privateConstructorUsedError;
   String? get status => throw _privateConstructorUsedError;
   String? get statusDescription => throw _privateConstructorUsedError;
-  String? get location =>
-      throw _privateConstructorUsedError; // world 또는 offline, private 등
+  List<String>? get tags => throw _privateConstructorUsedError;
+  String? get userIcon => throw _privateConstructorUsedError; // 계산된 필드들
+  bool get isOnline => throw _privateConstructorUsedError;
   String? get instanceId => throw _privateConstructorUsedError;
   String? get worldId => throw _privateConstructorUsedError;
-  DateTime? get lastLogin => throw _privateConstructorUsedError;
-  String? get platform => throw _privateConstructorUsedError;
-  bool get isOnline => throw _privateConstructorUsedError;
-  String? get developerType => throw _privateConstructorUsedError;
-  List<String>? get tags => throw _privateConstructorUsedError;
-  String? get friendKey =>
+  String? get travelingToLocation => throw _privateConstructorUsedError;
+  bool get canRequestInvite =>
       throw _privateConstructorUsedError; // VRChat API 원본 응답 저장
   Map<String, dynamic>? get rawApiResponse =>
       throw _privateConstructorUsedError;
@@ -58,21 +74,33 @@ abstract class $FriendCopyWith<$Res> {
   @useResult
   $Res call({
     String id,
-    String username,
     String displayName,
     String? bio,
+    List<String>? bioLinks,
     String? currentAvatarImageUrl,
+    String? currentAvatarThumbnailImageUrl,
+    List<String>? currentAvatarTags,
+    String? developerType,
+    String? friendKey,
+    bool isFriend,
+    String? imageUrl,
+    @JsonKey(name: 'last_platform') String? lastPlatform,
+    String? location,
+    @JsonKey(name: 'last_login') DateTime? lastLogin,
+    @JsonKey(name: 'last_activity') DateTime? lastActivity,
+    @JsonKey(name: 'last_mobile') DateTime? lastMobile,
+    String? platform,
+    String? profilePicOverride,
+    String? profilePicOverrideThumbnail,
     String? status,
     String? statusDescription,
-    String? location,
+    List<String>? tags,
+    String? userIcon,
+    bool isOnline,
     String? instanceId,
     String? worldId,
-    DateTime? lastLogin,
-    String? platform,
-    bool isOnline,
-    String? developerType,
-    List<String>? tags,
-    String? friendKey,
+    String? travelingToLocation,
+    bool canRequestInvite,
     Map<String, dynamic>? rawApiResponse,
   });
 }
@@ -93,21 +121,33 @@ class _$FriendCopyWithImpl<$Res, $Val extends Friend>
   @override
   $Res call({
     Object? id = null,
-    Object? username = null,
     Object? displayName = null,
     Object? bio = freezed,
+    Object? bioLinks = freezed,
     Object? currentAvatarImageUrl = freezed,
+    Object? currentAvatarThumbnailImageUrl = freezed,
+    Object? currentAvatarTags = freezed,
+    Object? developerType = freezed,
+    Object? friendKey = freezed,
+    Object? isFriend = null,
+    Object? imageUrl = freezed,
+    Object? lastPlatform = freezed,
+    Object? location = freezed,
+    Object? lastLogin = freezed,
+    Object? lastActivity = freezed,
+    Object? lastMobile = freezed,
+    Object? platform = freezed,
+    Object? profilePicOverride = freezed,
+    Object? profilePicOverrideThumbnail = freezed,
     Object? status = freezed,
     Object? statusDescription = freezed,
-    Object? location = freezed,
+    Object? tags = freezed,
+    Object? userIcon = freezed,
+    Object? isOnline = null,
     Object? instanceId = freezed,
     Object? worldId = freezed,
-    Object? lastLogin = freezed,
-    Object? platform = freezed,
-    Object? isOnline = null,
-    Object? developerType = freezed,
-    Object? tags = freezed,
-    Object? friendKey = freezed,
+    Object? travelingToLocation = freezed,
+    Object? canRequestInvite = null,
     Object? rawApiResponse = freezed,
   }) {
     return _then(
@@ -115,10 +155,6 @@ class _$FriendCopyWithImpl<$Res, $Val extends Friend>
             id: null == id
                 ? _value.id
                 : id // ignore: cast_nullable_to_non_nullable
-                      as String,
-            username: null == username
-                ? _value.username
-                : username // ignore: cast_nullable_to_non_nullable
                       as String,
             displayName: null == displayName
                 ? _value.displayName
@@ -128,9 +164,70 @@ class _$FriendCopyWithImpl<$Res, $Val extends Friend>
                 ? _value.bio
                 : bio // ignore: cast_nullable_to_non_nullable
                       as String?,
+            bioLinks: freezed == bioLinks
+                ? _value.bioLinks
+                : bioLinks // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
             currentAvatarImageUrl: freezed == currentAvatarImageUrl
                 ? _value.currentAvatarImageUrl
                 : currentAvatarImageUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            currentAvatarThumbnailImageUrl:
+                freezed == currentAvatarThumbnailImageUrl
+                ? _value.currentAvatarThumbnailImageUrl
+                : currentAvatarThumbnailImageUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            currentAvatarTags: freezed == currentAvatarTags
+                ? _value.currentAvatarTags
+                : currentAvatarTags // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            developerType: freezed == developerType
+                ? _value.developerType
+                : developerType // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            friendKey: freezed == friendKey
+                ? _value.friendKey
+                : friendKey // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            isFriend: null == isFriend
+                ? _value.isFriend
+                : isFriend // ignore: cast_nullable_to_non_nullable
+                      as bool,
+            imageUrl: freezed == imageUrl
+                ? _value.imageUrl
+                : imageUrl // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            lastPlatform: freezed == lastPlatform
+                ? _value.lastPlatform
+                : lastPlatform // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            location: freezed == location
+                ? _value.location
+                : location // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            lastLogin: freezed == lastLogin
+                ? _value.lastLogin
+                : lastLogin // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
+            lastActivity: freezed == lastActivity
+                ? _value.lastActivity
+                : lastActivity // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
+            lastMobile: freezed == lastMobile
+                ? _value.lastMobile
+                : lastMobile // ignore: cast_nullable_to_non_nullable
+                      as DateTime?,
+            platform: freezed == platform
+                ? _value.platform
+                : platform // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            profilePicOverride: freezed == profilePicOverride
+                ? _value.profilePicOverride
+                : profilePicOverride // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            profilePicOverrideThumbnail: freezed == profilePicOverrideThumbnail
+                ? _value.profilePicOverrideThumbnail
+                : profilePicOverrideThumbnail // ignore: cast_nullable_to_non_nullable
                       as String?,
             status: freezed == status
                 ? _value.status
@@ -140,10 +237,18 @@ class _$FriendCopyWithImpl<$Res, $Val extends Friend>
                 ? _value.statusDescription
                 : statusDescription // ignore: cast_nullable_to_non_nullable
                       as String?,
-            location: freezed == location
-                ? _value.location
-                : location // ignore: cast_nullable_to_non_nullable
+            tags: freezed == tags
+                ? _value.tags
+                : tags // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            userIcon: freezed == userIcon
+                ? _value.userIcon
+                : userIcon // ignore: cast_nullable_to_non_nullable
                       as String?,
+            isOnline: null == isOnline
+                ? _value.isOnline
+                : isOnline // ignore: cast_nullable_to_non_nullable
+                      as bool,
             instanceId: freezed == instanceId
                 ? _value.instanceId
                 : instanceId // ignore: cast_nullable_to_non_nullable
@@ -152,30 +257,14 @@ class _$FriendCopyWithImpl<$Res, $Val extends Friend>
                 ? _value.worldId
                 : worldId // ignore: cast_nullable_to_non_nullable
                       as String?,
-            lastLogin: freezed == lastLogin
-                ? _value.lastLogin
-                : lastLogin // ignore: cast_nullable_to_non_nullable
-                      as DateTime?,
-            platform: freezed == platform
-                ? _value.platform
-                : platform // ignore: cast_nullable_to_non_nullable
+            travelingToLocation: freezed == travelingToLocation
+                ? _value.travelingToLocation
+                : travelingToLocation // ignore: cast_nullable_to_non_nullable
                       as String?,
-            isOnline: null == isOnline
-                ? _value.isOnline
-                : isOnline // ignore: cast_nullable_to_non_nullable
+            canRequestInvite: null == canRequestInvite
+                ? _value.canRequestInvite
+                : canRequestInvite // ignore: cast_nullable_to_non_nullable
                       as bool,
-            developerType: freezed == developerType
-                ? _value.developerType
-                : developerType // ignore: cast_nullable_to_non_nullable
-                      as String?,
-            tags: freezed == tags
-                ? _value.tags
-                : tags // ignore: cast_nullable_to_non_nullable
-                      as List<String>?,
-            friendKey: freezed == friendKey
-                ? _value.friendKey
-                : friendKey // ignore: cast_nullable_to_non_nullable
-                      as String?,
             rawApiResponse: freezed == rawApiResponse
                 ? _value.rawApiResponse
                 : rawApiResponse // ignore: cast_nullable_to_non_nullable
@@ -196,21 +285,33 @@ abstract class _$$FriendImplCopyWith<$Res> implements $FriendCopyWith<$Res> {
   @useResult
   $Res call({
     String id,
-    String username,
     String displayName,
     String? bio,
+    List<String>? bioLinks,
     String? currentAvatarImageUrl,
+    String? currentAvatarThumbnailImageUrl,
+    List<String>? currentAvatarTags,
+    String? developerType,
+    String? friendKey,
+    bool isFriend,
+    String? imageUrl,
+    @JsonKey(name: 'last_platform') String? lastPlatform,
+    String? location,
+    @JsonKey(name: 'last_login') DateTime? lastLogin,
+    @JsonKey(name: 'last_activity') DateTime? lastActivity,
+    @JsonKey(name: 'last_mobile') DateTime? lastMobile,
+    String? platform,
+    String? profilePicOverride,
+    String? profilePicOverrideThumbnail,
     String? status,
     String? statusDescription,
-    String? location,
+    List<String>? tags,
+    String? userIcon,
+    bool isOnline,
     String? instanceId,
     String? worldId,
-    DateTime? lastLogin,
-    String? platform,
-    bool isOnline,
-    String? developerType,
-    List<String>? tags,
-    String? friendKey,
+    String? travelingToLocation,
+    bool canRequestInvite,
     Map<String, dynamic>? rawApiResponse,
   });
 }
@@ -230,21 +331,33 @@ class __$$FriendImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? id = null,
-    Object? username = null,
     Object? displayName = null,
     Object? bio = freezed,
+    Object? bioLinks = freezed,
     Object? currentAvatarImageUrl = freezed,
+    Object? currentAvatarThumbnailImageUrl = freezed,
+    Object? currentAvatarTags = freezed,
+    Object? developerType = freezed,
+    Object? friendKey = freezed,
+    Object? isFriend = null,
+    Object? imageUrl = freezed,
+    Object? lastPlatform = freezed,
+    Object? location = freezed,
+    Object? lastLogin = freezed,
+    Object? lastActivity = freezed,
+    Object? lastMobile = freezed,
+    Object? platform = freezed,
+    Object? profilePicOverride = freezed,
+    Object? profilePicOverrideThumbnail = freezed,
     Object? status = freezed,
     Object? statusDescription = freezed,
-    Object? location = freezed,
+    Object? tags = freezed,
+    Object? userIcon = freezed,
+    Object? isOnline = null,
     Object? instanceId = freezed,
     Object? worldId = freezed,
-    Object? lastLogin = freezed,
-    Object? platform = freezed,
-    Object? isOnline = null,
-    Object? developerType = freezed,
-    Object? tags = freezed,
-    Object? friendKey = freezed,
+    Object? travelingToLocation = freezed,
+    Object? canRequestInvite = null,
     Object? rawApiResponse = freezed,
   }) {
     return _then(
@@ -252,10 +365,6 @@ class __$$FriendImplCopyWithImpl<$Res>
         id: null == id
             ? _value.id
             : id // ignore: cast_nullable_to_non_nullable
-                  as String,
-        username: null == username
-            ? _value.username
-            : username // ignore: cast_nullable_to_non_nullable
                   as String,
         displayName: null == displayName
             ? _value.displayName
@@ -265,9 +374,70 @@ class __$$FriendImplCopyWithImpl<$Res>
             ? _value.bio
             : bio // ignore: cast_nullable_to_non_nullable
                   as String?,
+        bioLinks: freezed == bioLinks
+            ? _value._bioLinks
+            : bioLinks // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
         currentAvatarImageUrl: freezed == currentAvatarImageUrl
             ? _value.currentAvatarImageUrl
             : currentAvatarImageUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        currentAvatarThumbnailImageUrl:
+            freezed == currentAvatarThumbnailImageUrl
+            ? _value.currentAvatarThumbnailImageUrl
+            : currentAvatarThumbnailImageUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        currentAvatarTags: freezed == currentAvatarTags
+            ? _value._currentAvatarTags
+            : currentAvatarTags // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        developerType: freezed == developerType
+            ? _value.developerType
+            : developerType // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        friendKey: freezed == friendKey
+            ? _value.friendKey
+            : friendKey // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        isFriend: null == isFriend
+            ? _value.isFriend
+            : isFriend // ignore: cast_nullable_to_non_nullable
+                  as bool,
+        imageUrl: freezed == imageUrl
+            ? _value.imageUrl
+            : imageUrl // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        lastPlatform: freezed == lastPlatform
+            ? _value.lastPlatform
+            : lastPlatform // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        location: freezed == location
+            ? _value.location
+            : location // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        lastLogin: freezed == lastLogin
+            ? _value.lastLogin
+            : lastLogin // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
+        lastActivity: freezed == lastActivity
+            ? _value.lastActivity
+            : lastActivity // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
+        lastMobile: freezed == lastMobile
+            ? _value.lastMobile
+            : lastMobile // ignore: cast_nullable_to_non_nullable
+                  as DateTime?,
+        platform: freezed == platform
+            ? _value.platform
+            : platform // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        profilePicOverride: freezed == profilePicOverride
+            ? _value.profilePicOverride
+            : profilePicOverride // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        profilePicOverrideThumbnail: freezed == profilePicOverrideThumbnail
+            ? _value.profilePicOverrideThumbnail
+            : profilePicOverrideThumbnail // ignore: cast_nullable_to_non_nullable
                   as String?,
         status: freezed == status
             ? _value.status
@@ -277,10 +447,18 @@ class __$$FriendImplCopyWithImpl<$Res>
             ? _value.statusDescription
             : statusDescription // ignore: cast_nullable_to_non_nullable
                   as String?,
-        location: freezed == location
-            ? _value.location
-            : location // ignore: cast_nullable_to_non_nullable
+        tags: freezed == tags
+            ? _value._tags
+            : tags // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        userIcon: freezed == userIcon
+            ? _value.userIcon
+            : userIcon // ignore: cast_nullable_to_non_nullable
                   as String?,
+        isOnline: null == isOnline
+            ? _value.isOnline
+            : isOnline // ignore: cast_nullable_to_non_nullable
+                  as bool,
         instanceId: freezed == instanceId
             ? _value.instanceId
             : instanceId // ignore: cast_nullable_to_non_nullable
@@ -289,30 +467,14 @@ class __$$FriendImplCopyWithImpl<$Res>
             ? _value.worldId
             : worldId // ignore: cast_nullable_to_non_nullable
                   as String?,
-        lastLogin: freezed == lastLogin
-            ? _value.lastLogin
-            : lastLogin // ignore: cast_nullable_to_non_nullable
-                  as DateTime?,
-        platform: freezed == platform
-            ? _value.platform
-            : platform // ignore: cast_nullable_to_non_nullable
+        travelingToLocation: freezed == travelingToLocation
+            ? _value.travelingToLocation
+            : travelingToLocation // ignore: cast_nullable_to_non_nullable
                   as String?,
-        isOnline: null == isOnline
-            ? _value.isOnline
-            : isOnline // ignore: cast_nullable_to_non_nullable
+        canRequestInvite: null == canRequestInvite
+            ? _value.canRequestInvite
+            : canRequestInvite // ignore: cast_nullable_to_non_nullable
                   as bool,
-        developerType: freezed == developerType
-            ? _value.developerType
-            : developerType // ignore: cast_nullable_to_non_nullable
-                  as String?,
-        tags: freezed == tags
-            ? _value._tags
-            : tags // ignore: cast_nullable_to_non_nullable
-                  as List<String>?,
-        friendKey: freezed == friendKey
-            ? _value.friendKey
-            : friendKey // ignore: cast_nullable_to_non_nullable
-                  as String?,
         rawApiResponse: freezed == rawApiResponse
             ? _value._rawApiResponse
             : rawApiResponse // ignore: cast_nullable_to_non_nullable
@@ -327,23 +489,37 @@ class __$$FriendImplCopyWithImpl<$Res>
 class _$FriendImpl implements _Friend {
   const _$FriendImpl({
     required this.id,
-    required this.username,
     required this.displayName,
     this.bio,
+    final List<String>? bioLinks,
     this.currentAvatarImageUrl,
+    this.currentAvatarThumbnailImageUrl,
+    final List<String>? currentAvatarTags,
+    this.developerType,
+    this.friendKey,
+    this.isFriend = true,
+    this.imageUrl,
+    @JsonKey(name: 'last_platform') this.lastPlatform,
+    this.location,
+    @JsonKey(name: 'last_login') this.lastLogin,
+    @JsonKey(name: 'last_activity') this.lastActivity,
+    @JsonKey(name: 'last_mobile') this.lastMobile,
+    this.platform,
+    this.profilePicOverride,
+    this.profilePicOverrideThumbnail,
     this.status,
     this.statusDescription,
-    this.location,
+    final List<String>? tags,
+    this.userIcon,
+    this.isOnline = false,
     this.instanceId,
     this.worldId,
-    this.lastLogin,
-    this.platform,
-    this.isOnline = false,
-    this.developerType,
-    final List<String>? tags,
-    this.friendKey,
+    this.travelingToLocation,
+    this.canRequestInvite = false,
     final Map<String, dynamic>? rawApiResponse,
-  }) : _tags = tags,
+  }) : _bioLinks = bioLinks,
+       _currentAvatarTags = currentAvatarTags,
+       _tags = tags,
        _rawApiResponse = rawApiResponse;
 
   factory _$FriendImpl.fromJson(Map<String, dynamic> json) =>
@@ -352,33 +528,67 @@ class _$FriendImpl implements _Friend {
   @override
   final String id;
   @override
-  final String username;
-  @override
   final String displayName;
   @override
   final String? bio;
+  final List<String>? _bioLinks;
+  @override
+  List<String>? get bioLinks {
+    final value = _bioLinks;
+    if (value == null) return null;
+    if (_bioLinks is EqualUnmodifiableListView) return _bioLinks;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
   @override
   final String? currentAvatarImageUrl;
+  @override
+  final String? currentAvatarThumbnailImageUrl;
+  final List<String>? _currentAvatarTags;
+  @override
+  List<String>? get currentAvatarTags {
+    final value = _currentAvatarTags;
+    if (value == null) return null;
+    if (_currentAvatarTags is EqualUnmodifiableListView)
+      return _currentAvatarTags;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  @override
+  final String? developerType;
+  @override
+  final String? friendKey;
+  @override
+  @JsonKey()
+  final bool isFriend;
+  @override
+  final String? imageUrl;
+  @override
+  @JsonKey(name: 'last_platform')
+  final String? lastPlatform;
+  @override
+  final String? location;
+  @override
+  @JsonKey(name: 'last_login')
+  final DateTime? lastLogin;
+  @override
+  @JsonKey(name: 'last_activity')
+  final DateTime? lastActivity;
+  @override
+  @JsonKey(name: 'last_mobile')
+  final DateTime? lastMobile;
+  @override
+  final String? platform;
+  @override
+  final String? profilePicOverride;
+  @override
+  final String? profilePicOverrideThumbnail;
   @override
   final String? status;
   @override
   final String? statusDescription;
-  @override
-  final String? location;
-  // world 또는 offline, private 등
-  @override
-  final String? instanceId;
-  @override
-  final String? worldId;
-  @override
-  final DateTime? lastLogin;
-  @override
-  final String? platform;
-  @override
-  @JsonKey()
-  final bool isOnline;
-  @override
-  final String? developerType;
   final List<String>? _tags;
   @override
   List<String>? get tags {
@@ -390,7 +600,20 @@ class _$FriendImpl implements _Friend {
   }
 
   @override
-  final String? friendKey;
+  final String? userIcon;
+  // 계산된 필드들
+  @override
+  @JsonKey()
+  final bool isOnline;
+  @override
+  final String? instanceId;
+  @override
+  final String? worldId;
+  @override
+  final String? travelingToLocation;
+  @override
+  @JsonKey()
+  final bool canRequestInvite;
   // VRChat API 원본 응답 저장
   final Map<String, dynamic>? _rawApiResponse;
   // VRChat API 원본 응답 저장
@@ -405,7 +628,7 @@ class _$FriendImpl implements _Friend {
 
   @override
   String toString() {
-    return 'Friend(id: $id, username: $username, displayName: $displayName, bio: $bio, currentAvatarImageUrl: $currentAvatarImageUrl, status: $status, statusDescription: $statusDescription, location: $location, instanceId: $instanceId, worldId: $worldId, lastLogin: $lastLogin, platform: $platform, isOnline: $isOnline, developerType: $developerType, tags: $tags, friendKey: $friendKey, rawApiResponse: $rawApiResponse)';
+    return 'Friend(id: $id, displayName: $displayName, bio: $bio, bioLinks: $bioLinks, currentAvatarImageUrl: $currentAvatarImageUrl, currentAvatarThumbnailImageUrl: $currentAvatarThumbnailImageUrl, currentAvatarTags: $currentAvatarTags, developerType: $developerType, friendKey: $friendKey, isFriend: $isFriend, imageUrl: $imageUrl, lastPlatform: $lastPlatform, location: $location, lastLogin: $lastLogin, lastActivity: $lastActivity, lastMobile: $lastMobile, platform: $platform, profilePicOverride: $profilePicOverride, profilePicOverrideThumbnail: $profilePicOverrideThumbnail, status: $status, statusDescription: $statusDescription, tags: $tags, userIcon: $userIcon, isOnline: $isOnline, instanceId: $instanceId, worldId: $worldId, travelingToLocation: $travelingToLocation, canRequestInvite: $canRequestInvite, rawApiResponse: $rawApiResponse)';
   }
 
   @override
@@ -414,32 +637,65 @@ class _$FriendImpl implements _Friend {
         (other.runtimeType == runtimeType &&
             other is _$FriendImpl &&
             (identical(other.id, id) || other.id == id) &&
-            (identical(other.username, username) ||
-                other.username == username) &&
             (identical(other.displayName, displayName) ||
                 other.displayName == displayName) &&
             (identical(other.bio, bio) || other.bio == bio) &&
+            const DeepCollectionEquality().equals(other._bioLinks, _bioLinks) &&
             (identical(other.currentAvatarImageUrl, currentAvatarImageUrl) ||
                 other.currentAvatarImageUrl == currentAvatarImageUrl) &&
+            (identical(
+                  other.currentAvatarThumbnailImageUrl,
+                  currentAvatarThumbnailImageUrl,
+                ) ||
+                other.currentAvatarThumbnailImageUrl ==
+                    currentAvatarThumbnailImageUrl) &&
+            const DeepCollectionEquality().equals(
+              other._currentAvatarTags,
+              _currentAvatarTags,
+            ) &&
+            (identical(other.developerType, developerType) ||
+                other.developerType == developerType) &&
+            (identical(other.friendKey, friendKey) ||
+                other.friendKey == friendKey) &&
+            (identical(other.isFriend, isFriend) ||
+                other.isFriend == isFriend) &&
+            (identical(other.imageUrl, imageUrl) ||
+                other.imageUrl == imageUrl) &&
+            (identical(other.lastPlatform, lastPlatform) ||
+                other.lastPlatform == lastPlatform) &&
+            (identical(other.location, location) ||
+                other.location == location) &&
+            (identical(other.lastLogin, lastLogin) ||
+                other.lastLogin == lastLogin) &&
+            (identical(other.lastActivity, lastActivity) ||
+                other.lastActivity == lastActivity) &&
+            (identical(other.lastMobile, lastMobile) ||
+                other.lastMobile == lastMobile) &&
+            (identical(other.platform, platform) ||
+                other.platform == platform) &&
+            (identical(other.profilePicOverride, profilePicOverride) ||
+                other.profilePicOverride == profilePicOverride) &&
+            (identical(
+                  other.profilePicOverrideThumbnail,
+                  profilePicOverrideThumbnail,
+                ) ||
+                other.profilePicOverrideThumbnail ==
+                    profilePicOverrideThumbnail) &&
             (identical(other.status, status) || other.status == status) &&
             (identical(other.statusDescription, statusDescription) ||
                 other.statusDescription == statusDescription) &&
-            (identical(other.location, location) ||
-                other.location == location) &&
+            const DeepCollectionEquality().equals(other._tags, _tags) &&
+            (identical(other.userIcon, userIcon) ||
+                other.userIcon == userIcon) &&
+            (identical(other.isOnline, isOnline) ||
+                other.isOnline == isOnline) &&
             (identical(other.instanceId, instanceId) ||
                 other.instanceId == instanceId) &&
             (identical(other.worldId, worldId) || other.worldId == worldId) &&
-            (identical(other.lastLogin, lastLogin) ||
-                other.lastLogin == lastLogin) &&
-            (identical(other.platform, platform) ||
-                other.platform == platform) &&
-            (identical(other.isOnline, isOnline) ||
-                other.isOnline == isOnline) &&
-            (identical(other.developerType, developerType) ||
-                other.developerType == developerType) &&
-            const DeepCollectionEquality().equals(other._tags, _tags) &&
-            (identical(other.friendKey, friendKey) ||
-                other.friendKey == friendKey) &&
+            (identical(other.travelingToLocation, travelingToLocation) ||
+                other.travelingToLocation == travelingToLocation) &&
+            (identical(other.canRequestInvite, canRequestInvite) ||
+                other.canRequestInvite == canRequestInvite) &&
             const DeepCollectionEquality().equals(
               other._rawApiResponse,
               _rawApiResponse,
@@ -448,26 +704,38 @@ class _$FriendImpl implements _Friend {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
-    username,
     displayName,
     bio,
+    const DeepCollectionEquality().hash(_bioLinks),
     currentAvatarImageUrl,
+    currentAvatarThumbnailImageUrl,
+    const DeepCollectionEquality().hash(_currentAvatarTags),
+    developerType,
+    friendKey,
+    isFriend,
+    imageUrl,
+    lastPlatform,
+    location,
+    lastLogin,
+    lastActivity,
+    lastMobile,
+    platform,
+    profilePicOverride,
+    profilePicOverrideThumbnail,
     status,
     statusDescription,
-    location,
+    const DeepCollectionEquality().hash(_tags),
+    userIcon,
+    isOnline,
     instanceId,
     worldId,
-    lastLogin,
-    platform,
-    isOnline,
-    developerType,
-    const DeepCollectionEquality().hash(_tags),
-    friendKey,
+    travelingToLocation,
+    canRequestInvite,
     const DeepCollectionEquality().hash(_rawApiResponse),
-  );
+  ]);
 
   /// Create a copy of Friend
   /// with the given fields replaced by the non-null parameter values.
@@ -486,21 +754,33 @@ class _$FriendImpl implements _Friend {
 abstract class _Friend implements Friend {
   const factory _Friend({
     required final String id,
-    required final String username,
     required final String displayName,
     final String? bio,
+    final List<String>? bioLinks,
     final String? currentAvatarImageUrl,
+    final String? currentAvatarThumbnailImageUrl,
+    final List<String>? currentAvatarTags,
+    final String? developerType,
+    final String? friendKey,
+    final bool isFriend,
+    final String? imageUrl,
+    @JsonKey(name: 'last_platform') final String? lastPlatform,
+    final String? location,
+    @JsonKey(name: 'last_login') final DateTime? lastLogin,
+    @JsonKey(name: 'last_activity') final DateTime? lastActivity,
+    @JsonKey(name: 'last_mobile') final DateTime? lastMobile,
+    final String? platform,
+    final String? profilePicOverride,
+    final String? profilePicOverrideThumbnail,
     final String? status,
     final String? statusDescription,
-    final String? location,
+    final List<String>? tags,
+    final String? userIcon,
+    final bool isOnline,
     final String? instanceId,
     final String? worldId,
-    final DateTime? lastLogin,
-    final String? platform,
-    final bool isOnline,
-    final String? developerType,
-    final List<String>? tags,
-    final String? friendKey,
+    final String? travelingToLocation,
+    final bool canRequestInvite,
     final Map<String, dynamic>? rawApiResponse,
   }) = _$FriendImpl;
 
@@ -509,35 +789,63 @@ abstract class _Friend implements Friend {
   @override
   String get id;
   @override
-  String get username;
-  @override
   String get displayName;
   @override
   String? get bio;
   @override
+  List<String>? get bioLinks;
+  @override
   String? get currentAvatarImageUrl;
+  @override
+  String? get currentAvatarThumbnailImageUrl;
+  @override
+  List<String>? get currentAvatarTags;
+  @override
+  String? get developerType;
+  @override
+  String? get friendKey;
+  @override
+  bool get isFriend;
+  @override
+  String? get imageUrl;
+  @override
+  @JsonKey(name: 'last_platform')
+  String? get lastPlatform;
+  @override
+  String? get location;
+  @override
+  @JsonKey(name: 'last_login')
+  DateTime? get lastLogin;
+  @override
+  @JsonKey(name: 'last_activity')
+  DateTime? get lastActivity;
+  @override
+  @JsonKey(name: 'last_mobile')
+  DateTime? get lastMobile;
+  @override
+  String? get platform;
+  @override
+  String? get profilePicOverride;
+  @override
+  String? get profilePicOverrideThumbnail;
   @override
   String? get status;
   @override
   String? get statusDescription;
   @override
-  String? get location; // world 또는 offline, private 등
+  List<String>? get tags;
+  @override
+  String? get userIcon; // 계산된 필드들
+  @override
+  bool get isOnline;
   @override
   String? get instanceId;
   @override
   String? get worldId;
   @override
-  DateTime? get lastLogin;
+  String? get travelingToLocation;
   @override
-  String? get platform;
-  @override
-  bool get isOnline;
-  @override
-  String? get developerType;
-  @override
-  List<String>? get tags;
-  @override
-  String? get friendKey; // VRChat API 원본 응답 저장
+  bool get canRequestInvite; // VRChat API 원본 응답 저장
   @override
   Map<String, dynamic>? get rawApiResponse;
 

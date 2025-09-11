@@ -11,6 +11,12 @@ class AuthService {
   String? _authCookie; // 인증 쿠키 저장
   
   AuthService();
+  
+  // 외부에서 접근 가능하도록 getter 추가
+  String? get authCookie => _authCookie;
+  
+  // 외부에서 쿠키 로드 메서드 접근 가능하도록
+  Future<void> loadSavedCookie() async => await _loadSavedCookie();
 
   // 저장된 쿠키 로드
   Future<void> _loadSavedCookie() async {
@@ -465,7 +471,7 @@ class AuthService {
   Future<FriendsListResponse> getFriends({
     int offset = 0,
     int limit = 60,
-    bool includeOffline = true,
+    bool includeOffline = false,
   }) async {
     try {
       print('👥 친구목록 요청 시작 - 쿠키 상태: $_authCookie');
@@ -505,27 +511,63 @@ class AuthService {
         final List<dynamic> friendsData = jsonDecode(response.body);
         
         final friends = friendsData.map<Friend>((friendJson) {
+          // status 기반으로 온라인 상태 판별
+          final status = friendJson['status'] as String?;
+          bool isOnline = status != null && status != 'offline';
+          
+          // location 기반으로 인스턴스 정보 파싱
+          final location = friendJson['location'] as String?;
+          String? instanceId;
+          String? worldId;
+          
+          if (location != null && location.contains(':')) {
+            final parts = location.split(':');
+            if (parts.length >= 2) {
+              worldId = parts[0];
+              instanceId = parts[1];
+            }
+          }
+          
           return Friend(
             id: friendJson['id'] ?? '',
-            username: friendJson['username'] ?? friendJson['displayName'] ?? '',
             displayName: friendJson['displayName'] ?? '',
             bio: friendJson['bio'],
+            bioLinks: friendJson['bioLinks'] != null 
+                ? List<String>.from(friendJson['bioLinks'])
+                : null,
             currentAvatarImageUrl: friendJson['currentAvatarImageUrl'],
-            status: friendJson['status'],
-            statusDescription: friendJson['statusDescription'],
-            location: friendJson['location'],
-            instanceId: friendJson['instanceId'],
-            worldId: friendJson['worldId'],
+            currentAvatarThumbnailImageUrl: friendJson['currentAvatarThumbnailImageUrl'],
+            currentAvatarTags: friendJson['currentAvatarTags'] != null 
+                ? List<String>.from(friendJson['currentAvatarTags'])
+                : null,
+            developerType: friendJson['developerType'],
+            friendKey: friendJson['friendKey'],
+            isFriend: friendJson['isFriend'] ?? true,
+            imageUrl: friendJson['imageUrl'],
+            lastPlatform: friendJson['last_platform'],
+            location: location,
             lastLogin: friendJson['last_login'] != null 
                 ? DateTime.tryParse(friendJson['last_login'])
                 : null,
-            platform: friendJson['last_platform'],
-            isOnline: friendJson['location'] != 'offline',
-            developerType: friendJson['developerType'],
+            lastActivity: friendJson['last_activity'] != null 
+                ? DateTime.tryParse(friendJson['last_activity'])
+                : null,
+            lastMobile: friendJson['last_mobile'] != null 
+                ? DateTime.tryParse(friendJson['last_mobile'])
+                : null,
+            platform: friendJson['platform'],
+            profilePicOverride: friendJson['profilePicOverride'],
+            profilePicOverrideThumbnail: friendJson['profilePicOverrideThumbnail'],
+            status: friendJson['status'],
+            statusDescription: friendJson['statusDescription'],
             tags: friendJson['tags'] != null 
                 ? List<String>.from(friendJson['tags'])
                 : null,
-            friendKey: friendJson['friendKey'],
+            userIcon: friendJson['userIcon'],
+            // 계산된 필드들
+            isOnline: isOnline,
+            instanceId: instanceId,
+            worldId: worldId,
             rawApiResponse: friendJson,
           );
         }).toList();
@@ -564,6 +606,184 @@ class AuthService {
         success: false,
         message: '친구목록 가져오기 실패: ${e.toString()}',
       );
+    }
+  }
+
+  // 모든 친구를 가져오기 (pagination 처리)
+  Future<FriendsListResponse> getAllFriends({bool includeOffline = false}) async {
+    try {
+      final List<Friend> allFriends = [];
+      int offset = 0;
+      const int limit = 100; // VRChat API 최대값
+      bool hasMore = true;
+
+      while (hasMore) {
+        print('👥 친구 목록 페이지 요청: offset=$offset, limit=$limit');
+        
+        final response = await getFriends(
+          offset: offset,
+          limit: limit,
+          includeOffline: includeOffline,
+        );
+
+        if (!response.success) {
+          return response; // 에러 발생 시 바로 반환
+        }
+
+        final friends = response.friends;
+        allFriends.addAll(friends);
+        
+        print('👥 현재까지 ${allFriends.length}명의 친구를 불러왔습니다.');
+
+        // 더 가져올 친구가 있는지 확인
+        if (friends.length < limit) {
+          hasMore = false; // 마지막 페이지
+        } else {
+          offset += limit; // 다음 페이지로
+        }
+      }
+
+      print('✅ 총 ${allFriends.length}명의 친구를 성공적으로 불러왔습니다.');
+
+      return FriendsListResponse(
+        success: true,
+        message: '모든 친구 목록을 성공적으로 가져왔습니다.',
+        friends: allFriends,
+        total: allFriends.length,
+      );
+
+    } catch (e) {
+      print('❌ 모든 친구 목록 가져오기 오류: $e');
+      return FriendsListResponse(
+        success: false,
+        message: '모든 친구 목록 가져오기 실패: ${e.toString()}',
+      );
+    }
+  }
+
+  // 월드 정보 가져오기
+  Future<String?> getWorldName(String worldId) async {
+    try {
+      await _loadSavedCookie();
+      
+      if (_authCookie == null || _authCookie!.isEmpty) {
+        print('❌ 월드 정보 요청 실패: 인증 쿠키 없음');
+        return null;
+      }
+
+      final response = await http.get(
+        Uri.parse('$baseUrl/worlds/$worldId'),
+        headers: {
+          'User-Agent': 'VRCMX/1.0.0',
+          'Cookie': 'auth=$_authCookie',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final worldData = jsonDecode(response.body);
+        return worldData['name'] as String?;
+      } else {
+        print('❌ 월드 정보 요청 실패: ${response.statusCode}');
+        return null;
+      }
+    } catch (e) {
+      print('❌ 월드 정보 가져오기 오류: $e');
+      return null;
+    }
+  }
+
+  /// 특정 알림을 읽음으로 표시
+  Future<bool> markNotificationAsRead(String notificationId) async {
+    try {
+      await _loadSavedCookie();
+      
+      if (_authCookie == null || _authCookie!.isEmpty) {
+        return false;
+      }
+      
+      final response = await http.put(
+        Uri.parse('$baseUrl/auth/user/notifications/$notificationId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'VRCMX/1.0.0',
+          'Cookie': 'auth=$_authCookie',
+        },
+        body: jsonEncode({'seen': true}),
+      ).timeout(const Duration(seconds: 10));
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ 알림 읽음 처리 오류: $e');
+      return false;
+    }
+  }
+
+  /// 친구 요청 수락
+  Future<bool> acceptFriendRequest(String notificationId) async {
+    try {
+      await _loadSavedCookie();
+      
+      if (_authCookie == null || _authCookie!.isEmpty) {
+        return false;
+      }
+      
+      final response = await http.put(
+        Uri.parse('$baseUrl/auth/user/notifications/$notificationId/accept'),
+        headers: {
+          'User-Agent': 'VRCMX/1.0.0',
+          'Cookie': 'auth=$_authCookie',
+        },
+      ).timeout(const Duration(seconds: 10));
+      
+      return response.statusCode == 200;
+    } catch (e) {
+      print('❌ 친구 요청 수락 오류: $e');
+      return false;
+    }
+  }
+
+  /// 웹소켓 엔드포인트 HTTP 테스트
+  Future<void> testWebSocketEndpoint() async {
+    try {
+      await _loadSavedCookie();
+      
+      if (_authCookie == null || _authCookie!.isEmpty) {
+        print('❌ 웹소켓 테스트 실패: 인증 쿠키 없음');
+        return;
+      }
+
+      String authToken = _authCookie!;
+      if (!authToken.startsWith('authcookie_')) {
+        authToken = 'authcookie_$authToken';
+      }
+
+      print('🔍 웹소켓 엔드포인트 HTTP 테스트 시작...');
+      print('🔑 사용할 authToken: $authToken');
+      
+      // HTTP GET 요청으로 웹소켓 엔드포인트 테스트
+      final response = await http.get(
+        Uri.parse('https://pipeline.vrchat.cloud/?authToken=$authToken'),
+        headers: {
+          'Accept-Encoding': 'gzip, deflate, br, zstd',
+          'Accept-Language': 'ko,en;q=0.9,en-US;q=0.8',
+          'Cache-Control': 'no-cache',
+          'Connection': 'Upgrade',
+          'Origin': 'https://vrchat.com',
+          'Pragma': 'no-cache',
+          'Sec-WebSocket-Extensions': 'permessage-deflate; client_max_window_bits',
+          'Sec-WebSocket-Key': '9pstKgxcIW22ICxJWJdBOQ==',
+          'Sec-WebSocket-Version': '13',
+          'Upgrade': 'websocket',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0',
+        },
+      ).timeout(const Duration(seconds: 10));
+
+      print('🌐 HTTP 응답 상태: ${response.statusCode}');
+      print('📋 HTTP 응답 헤더: ${response.headers}');
+      print('📄 HTTP 응답 내용: ${response.body}');
+      
+    } catch (e) {
+      print('❌ 웹소켓 엔드포인트 HTTP 테스트 오류: $e');
     }
   }
 }

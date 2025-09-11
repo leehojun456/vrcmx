@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/friend.dart';
 import '../services/auth_service.dart';
+import '../widgets/vrchat_network_image.dart';
+import '../providers/websocket_provider.dart';
 
-class FriendsListView extends StatefulWidget {
+class FriendsListView extends ConsumerStatefulWidget {
   final AuthService authService;
   
   const FriendsListView({
@@ -11,22 +14,21 @@ class FriendsListView extends StatefulWidget {
   });
 
   @override
-  State<FriendsListView> createState() => _FriendsListViewState();
+  ConsumerState<FriendsListView> createState() => _FriendsListViewState();
 }
 
-class _FriendsListViewState extends State<FriendsListView> {
-  List<Friend> _friends = [];
+class _FriendsListViewState extends ConsumerState<FriendsListView> {
   List<Friend> _filteredFriends = [];
-  bool _isLoading = true;
-  String _errorMessage = '';
   final TextEditingController _searchController = TextEditingController();
   bool _showOnlineOnly = false;
 
   @override
   void initState() {
     super.initState();
-    _loadFriends();
-    _searchController.addListener(_filterFriends);
+    _searchController.addListener(() {
+      final friends = ref.read(realtimeFriendsProvider);
+      _filterFriends(friends);
+    });
   }
 
   @override
@@ -35,42 +37,14 @@ class _FriendsListViewState extends State<FriendsListView> {
     super.dispose();
   }
 
-  Future<void> _loadFriends() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = '';
-    });
 
-    try {
-      final response = await widget.authService.getFriends();
-      
-      if (response.success) {
-        setState(() {
-          _friends = response.friends;
-          _filteredFriends = response.friends;
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _errorMessage = response.message ?? '친구목록을 가져올 수 없습니다';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _errorMessage = '네트워크 오류: ${e.toString()}';
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _filterFriends() {
+  void _filterFriends(List<Friend> friends) {
     final query = _searchController.text.toLowerCase();
     setState(() {
-      _filteredFriends = _friends.where((friend) {
+      _filteredFriends = friends.where((friend) {
         final matchesSearch = query.isEmpty ||
             friend.displayName.toLowerCase().contains(query) ||
-            friend.username.toLowerCase().contains(query);
+            (friend.id.toLowerCase().contains(query));
         
         final matchesOnlineFilter = !_showOnlineOnly || friend.isOnline;
         
@@ -92,14 +66,10 @@ class _FriendsListViewState extends State<FriendsListView> {
       child: ListTile(
         leading: Stack(
           children: [
-            CircleAvatar(
+            VRChatCircleAvatar(
               radius: 25,
-              backgroundImage: friend.currentAvatarImageUrl != null
-                  ? NetworkImage(friend.currentAvatarImageUrl!)
-                  : null,
-              child: friend.currentAvatarImageUrl == null
-                  ? const Icon(Icons.person)
-                  : null,
+              imageUrl: friend.currentAvatarThumbnailImageUrl,
+              child: const Icon(Icons.person),
             ),
             // 온라인 상태 표시
             Positioned(
@@ -109,7 +79,7 @@ class _FriendsListViewState extends State<FriendsListView> {
                 width: 16,
                 height: 16,
                 decoration: BoxDecoration(
-                  color: _getStatusColor(friend.status, friend.isOnline),
+                  color: _getStatusColor(friend.status, friend.location),
                   shape: BoxShape.circle,
                   border: Border.all(color: Colors.white, width: 2),
                 ),
@@ -125,8 +95,8 @@ class _FriendsListViewState extends State<FriendsListView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '@${friend.username}',
-              style: TextStyle(color: Colors.grey[600]),
+              friend.id,
+              style: TextStyle(color: Colors.grey[600], fontSize: 12),
             ),
             if (friend.statusDescription != null && friend.statusDescription!.isNotEmpty)
               Text(
@@ -151,18 +121,18 @@ class _FriendsListViewState extends State<FriendsListView> {
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (friend.platform != null)
+            if (friend.lastPlatform != null)
               Icon(
-                _getPlatformIcon(friend.platform!),
+                _getPlatformIcon(friend.lastPlatform!),
                 size: 16,
                 color: Colors.grey[600],
               ),
             const SizedBox(height: 4),
             Text(
-              _getStatusText(friend.status),
+              _getStatusText(friend.status, friend.location),
               style: TextStyle(
                 fontSize: 10,
-                color: _getStatusColor(friend.status, friend.isOnline),
+                color: _getStatusColor(friend.status, friend.location),
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -175,29 +145,49 @@ class _FriendsListViewState extends State<FriendsListView> {
     );
   }
 
-  Color _getStatusColor(String? status, bool isOnline) {
-    if (!isOnline) return Colors.grey;
-    
+  Color _getStatusColor(String? status, String? location) {
     switch (status?.toLowerCase()) {
       case 'online':
+      case 'join me':
+        // online/join me는 location이 있어야 함
+        if (location == 'offline' || location == null) return Colors.grey;
         return Colors.green;
-      case 'busy':
-        return Colors.orange;
+      case 'active':
+        // active는 location이 없어도 됨 (VRChat 밖에서도 온라인)
+        return Colors.yellow[700]!;
       case 'ask me':
-        return Colors.blue;
+        // ask me는 location이 있어야 함
+        if (location == 'offline' || location == null) return Colors.grey;
+        return Colors.orange;
+      case 'busy':
+        // busy는 location이 있어야 함
+        if (location == 'offline' || location == null) return Colors.grey;
+        return Colors.red;
+      case 'offline':
       default:
         return Colors.grey;
     }
   }
 
-  String _getStatusText(String? status) {
+  String _getStatusText(String? status, String? location) {
     switch (status?.toLowerCase()) {
       case 'online':
+      case 'join me':
+        // online/join me는 location이 있어야 함
+        if (location == 'offline' || location == null) return 'Offline';
         return 'Online';
-      case 'busy':
-        return 'Busy';
+      case 'active':
+        // active는 location이 없어도 됨 (VRChat 밖에서도 온라인)
+        return 'Active';
       case 'ask me':
+        // ask me는 location이 있어야 함
+        if (location == 'offline' || location == null) return 'Offline';
         return 'Ask Me';
+      case 'busy':
+        // busy는 location이 있어야 함
+        if (location == 'offline' || location == null) return 'Offline';
+        return 'Busy';
+      case 'offline':
       default:
         return 'Offline';
     }
@@ -217,9 +207,14 @@ class _FriendsListViewState extends State<FriendsListView> {
   }
 
   String _getLocationText(Friend friend) {
-    if (!friend.isOnline) return 'Offline';
+    // active 상태는 location이 없어도 "Active"로 표시
+    if (friend.status?.toLowerCase() == 'active') {
+      if (friend.location == null || friend.location == 'offline') return 'Active';
+    }
+    
+    if (friend.location == 'offline' || friend.location == null) return 'Offline';
     if (friend.location == 'private') return 'Private World';
-    if (friend.location?.startsWith('wrld_') == true) return 'In VRChat';
+    if (friend.worldId != null) return friend.worldId!;
     return friend.location ?? 'Online';
   }
 
@@ -272,10 +267,11 @@ class _FriendsListViewState extends State<FriendsListView> {
                         ),
                       ),
                       Text(
-                        '@${friend.username}',
+                        friend.id,
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           color: Colors.grey[600],
+                          fontFamily: 'monospace',
                         ),
                       ),
                     ],
@@ -296,12 +292,12 @@ class _FriendsListViewState extends State<FriendsListView> {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
-                _buildDetailRow('Status', _getStatusText(friend.status)),
+                _buildDetailRow('Status', _getStatusText(friend.status, friend.location)),
                 if (friend.statusDescription != null && friend.statusDescription!.isNotEmpty)
                   _buildDetailRow('Status Message', friend.statusDescription!),
                 _buildDetailRow('Location', _getLocationText(friend)),
-                if (friend.platform != null)
-                  _buildDetailRow('Platform', friend.platform!),
+                if (friend.lastPlatform != null)
+                  _buildDetailRow('Platform', friend.lastPlatform!),
                 if (friend.lastLogin != null)
                   _buildDetailRow('Last Login', _formatDateTime(friend.lastLogin!)),
                 _buildDetailRow('User ID', friend.id),
@@ -345,60 +341,54 @@ class _FriendsListViewState extends State<FriendsListView> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Friends'),
-          backgroundColor: Colors.blue[700],
-          foregroundColor: Colors.white,
-        ),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+    final friends = ref.watch(realtimeFriendsProvider);
+    final isConnected = ref.watch(webSocketConnectionProvider);
+    
+    // 친구 목록이 업데이트될 때마다 필터링
+    if (friends.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _filterFriends(friends);
+      });
     }
 
-    if (_errorMessage.isNotEmpty) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Friends'),
-          backgroundColor: Colors.blue[700],
-          foregroundColor: Colors.white,
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error, size: 64, color: Colors.red[300]),
-              const SizedBox(height: 16),
-              Text(
-                _errorMessage,
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.red[700]),
-              ),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: _loadFriends,
-                child: const Text('다시 시도'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    final onlineCount = _friends.where((f) => f.isOnline).length;
-    final totalCount = _friends.length;
+    final onlineCount = friends.where((f) => f.isOnline).length;
+    final totalCount = friends.length;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Friends ($onlineCount/$totalCount)'),
+        title: Row(
+          children: [
+            Text('Friends ($onlineCount/$totalCount)'),
+            const SizedBox(width: 8),
+            // 웹소켓 연결 상태 표시
+            Icon(
+              isConnected ? Icons.wifi : Icons.wifi_off,
+              size: 20,
+              color: isConnected ? Colors.green : Colors.red,
+            ),
+          ],
+        ),
         backgroundColor: Colors.blue[700],
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: _loadFriends,
+            onPressed: () async {
+              final friendsNotifier = ref.read(realtimeFriendsProvider.notifier);
+              await friendsNotifier.refresh();
+            },
+          ),
+          // 웹소켓 연결/해제 버튼
+          IconButton(
+            icon: Icon(isConnected ? Icons.pause : Icons.play_arrow),
+            onPressed: () async {
+              final connectionNotifier = ref.read(webSocketConnectionProvider.notifier);
+              if (isConnected) {
+                await connectionNotifier.disconnect();
+              } else {
+                await connectionNotifier.connect();
+              }
+            },
           ),
         ],
       ),
@@ -430,10 +420,41 @@ class _FriendsListViewState extends State<FriendsListView> {
                         setState(() {
                           _showOnlineOnly = value ?? false;
                         });
-                        _filterFriends();
+                        _filterFriends(friends);
                       },
                     ),
                     const Text('Show online only'),
+                    const Spacer(),
+                    // 실시간 업데이트 상태 표시
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: isConnected ? Colors.green[50] : Colors.red[50],
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isConnected ? Colors.green : Colors.red,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isConnected ? Icons.circle : Icons.circle_outlined,
+                            size: 8,
+                            color: isConnected ? Colors.green : Colors.red,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            isConnected ? 'Live' : 'Offline',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: isConnected ? Colors.green[700] : Colors.red[700],
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -441,31 +462,45 @@ class _FriendsListViewState extends State<FriendsListView> {
           ),
           // 친구목록
           Expanded(
-            child: _filteredFriends.isEmpty
-                ? Center(
+            child: friends.isEmpty
+                ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
-                        const SizedBox(height: 16),
-                        Text(
-                          _searchController.text.isNotEmpty
-                              ? 'No friends found matching "${_searchController.text}"'
-                              : 'No friends found',
-                          style: TextStyle(color: Colors.grey[600]),
-                        ),
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text('Loading friends...'),
                       ],
                     ),
                   )
-                : RefreshIndicator(
-                    onRefresh: _loadFriends,
-                    child: ListView.builder(
-                      itemCount: _filteredFriends.length,
-                      itemBuilder: (context, index) {
-                        return _buildFriendCard(_filteredFriends[index]);
-                      },
-                    ),
-                  ),
+                : _filteredFriends.isEmpty
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.people_outline, size: 64, color: Colors.grey[400]),
+                            const SizedBox(height: 16),
+                            Text(
+                              _searchController.text.isNotEmpty
+                                  ? 'No friends found matching "${_searchController.text}"'
+                                  : 'No friends found',
+                              style: TextStyle(color: Colors.grey[600]),
+                            ),
+                          ],
+                        ),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () async {
+                          final friendsNotifier = ref.read(realtimeFriendsProvider.notifier);
+                          await friendsNotifier.refresh();
+                        },
+                        child: ListView.builder(
+                          itemCount: _filteredFriends.length,
+                          itemBuilder: (context, index) {
+                            return _buildFriendCard(_filteredFriends[index]);
+                          },
+                        ),
+                      ),
           ),
         ],
       ),

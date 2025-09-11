@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/auth_state.dart';
 import '../viewmodels/auth_viewmodel.dart';
@@ -15,24 +16,23 @@ class SettingsTab extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('설정'),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
         automaticallyImplyLeading: false,
+        elevation: 0,
+        surfaceTintColor: Colors.white,
+        shadowColor: Colors.transparent,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarColor: Colors.white,
+          statusBarIconBrightness: Brightness.dark,
+        ),
       ),
       body: authState.when(
-        initial: () => const Center(
-          child: Text('로그인이 필요합니다.'),
-        ),
-        loading: () => const Center(
-          child: CircularProgressIndicator(),
-        ),
+        initial: () => const Center(child: Text('로그인이 필요합니다.')),
+        loading: () => const Center(child: CircularProgressIndicator()),
         authenticated: (user) => _buildSettingsContent(context, ref, user),
-        requires2FA: (methods) => const Center(
-          child: Text('2차 인증이 필요합니다.'),
-        ),
-        error: (message) => Center(
-          child: Text('오류: $message'),
-        ),
+        requires2FA: (methods) => const Center(child: Text('2차 인증이 필요합니다.')),
+        error: (message) => Center(child: Text('오류: $message')),
       ),
     );
   }
@@ -41,75 +41,10 @@ class SettingsTab extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        // 사용자 정보 카드
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    if (user.avatarImageUrl != null)
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundImage: NetworkImage(user.avatarImageUrl!),
-                        onBackgroundImageError: (_, __) {},
-                      )
-                    else
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Colors.blue[200],
-                        child: const Icon(Icons.person, size: 30, color: Colors.white),
-                      ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user.displayName,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            user.username,
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          if (user.id.isNotEmpty) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              'ID: ${user.id}',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[500],
-                                fontFamily: 'monospace',
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-
-        const SizedBox(height: 24),
-
         // 설정 메뉴들
         const Text(
           '계정',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
 
@@ -132,10 +67,7 @@ class SettingsTab extends ConsumerWidget {
               const Divider(height: 1),
               ListTile(
                 leading: Icon(Icons.logout, color: Colors.red[600]),
-                title: Text(
-                  '로그아웃',
-                  style: TextStyle(color: Colors.red[600]),
-                ),
+                title: Text('로그아웃', style: TextStyle(color: Colors.red[600])),
                 subtitle: const Text('저장된 로그인 정보를 삭제합니다'),
                 onTap: () {
                   _showLogoutDialog(context, ref);
@@ -149,10 +81,7 @@ class SettingsTab extends ConsumerWidget {
 
         const Text(
           '앱 정보',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 8),
 
@@ -193,16 +122,14 @@ class SettingsTab extends ConsumerWidget {
               onPressed: () {
                 Navigator.of(context).pop();
                 ref.read(authViewModelProvider.notifier).logout();
-                
+
                 // 로그인 페이지로 이동
                 Navigator.of(context).pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => const LoginPage()),
                   (route) => false,
                 );
               },
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.red,
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.red),
               child: const Text('로그아웃'),
             ),
           ],

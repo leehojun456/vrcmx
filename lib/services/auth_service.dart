@@ -697,4 +697,94 @@ class AuthService {
       return false;
     }
   }
+
+  Future<models.LoginResponse> verifyTOTP(String code) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/twofactorauth/totp/verify'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (_authCookie != null) 'Cookie': 'auth=$_authCookie',
+          'User-Agent': 'VRCMX/1.0.0',
+        },
+        body: jsonEncode({'code': code}),
+      );
+      final responseData = jsonDecode(response.body);
+      print('🔐 TOTP 응답: ${response.statusCode} ${response.body}');
+      if (response.statusCode == 200 && responseData['verified'] == true) {
+        return models.LoginResponse(
+          success: true,
+          user: null, // 인증만 성공, 사용자 정보 없음
+          message: 'TOTP 인증 성공',
+          rawApiResponse: responseData,
+        );
+      } else {
+        return models.LoginResponse(
+          success: false,
+          message: responseData['message'] ?? 'TOTP 인증 실패',
+          rawApiResponse: responseData,
+        );
+      }
+    } catch (e) {
+      return models.LoginResponse(
+        success: false,
+        message: 'TOTP 인증 에러: ${e.toString()}',
+      );
+    }
+  }
+
+  Future<models.LoginResponse> verifyEmailOTP(String code) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/auth/twofactorauth/emailotp/verify'),
+        headers: {
+          'Content-Type': 'application/json',
+          if (_authCookie != null) 'Cookie': 'auth=$_authCookie',
+          'User-Agent': 'VRCMX/1.0.0',
+        },
+        body: jsonEncode({'code': code}),
+      );
+      final responseData = jsonDecode(response.body);
+      print('🔐 EmailOTP 응답: ${response.statusCode} ${response.body}');
+      if (response.statusCode == 200 && responseData['verified'] == true) {
+        return models.LoginResponse(
+          success: true,
+          user: null, // 인증만 성공, 사용자 정보 없음
+          message: 'Email OTP 인증 성공',
+          rawApiResponse: responseData,
+        );
+      } else {
+        return models.LoginResponse(
+          success: false,
+          message: responseData['message'] ?? 'Email OTP 인증 실패',
+          rawApiResponse: responseData,
+        );
+      }
+    } catch (e) {
+      return models.LoginResponse(
+        success: false,
+        message: 'Email OTP 인증 에러: ${e.toString()}',
+      );
+    }
+  }
+
+  Future<models.User?> fetchUser() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/auth/user'),
+        headers: {
+          'User-Agent': 'VRCMX/1.0.0',
+          if (_authCookie != null) 'Cookie': 'auth=$_authCookie',
+        },
+      );
+      if (response.statusCode == 200) {
+        final userData = jsonDecode(response.body);
+        return models.User.fromJson(userData);
+      } else {
+        return null;
+      }
+    } catch (e) {
+      return null;
+    }
+  }
 }

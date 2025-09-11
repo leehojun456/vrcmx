@@ -52,9 +52,27 @@ class _LoginPageState extends State<LoginPage> {
           );
         },
         requires2FA: (methods) {
-          _show2FAMethodDialog(methods);
+          String selected;
+          if (methods.length == 1) {
+            selected = methods.first;
+          } else if (methods.contains('otp')) {
+            selected = 'otp';
+          } else if (methods.contains('emailOtp')) {
+            selected = 'emailOtp';
+          } else {
+            selected = methods.first;
+          }
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => TwoFactorPage(
+                availableMethods: methods,
+                initialMethod: selected,
+              ),
+            ),
+          );
         },
         error: (message) {
+          ScaffoldMessenger.of(context).clearSnackBars();
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(message), backgroundColor: Colors.red),
           );

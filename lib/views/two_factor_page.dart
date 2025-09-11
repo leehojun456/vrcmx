@@ -7,7 +7,7 @@ import 'home_screen.dart';
 class TwoFactorPage extends StatefulWidget {
   final List<String> availableMethods;
   final String? initialMethod;
-  
+
   const TwoFactorPage({
     super.key,
     required this.availableMethods,
@@ -20,47 +20,55 @@ class TwoFactorPage extends StatefulWidget {
 
 class _TwoFactorPageState extends State<TwoFactorPage> {
   final _formKey = GlobalKey<FormState>();
-  final _codeController = TextEditingController();
-  String _selectedMethod = '';
+  final List<TextEditingController> _controllers = List.generate(
+    6,
+    (_) => TextEditingController(),
+  );
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
   late final AuthController _auth;
   Worker? _worker;
 
   @override
   void initState() {
     super.initState();
-    _selectedMethod = widget.initialMethod ??
-        (widget.availableMethods.isNotEmpty ? widget.availableMethods.first : 'totp');
+    _auth = Get.find<AuthController>();
   }
 
   @override
   void dispose() {
-    _codeController.dispose();
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    for (final f in _focusNodes) {
+      f.dispose();
+    }
     _worker?.dispose();
     super.dispose();
   }
 
   void _handle2FA() {
     if (_formKey.currentState?.validate() ?? false) {
-      _auth.verify2FA(
-        _codeController.text.trim(),
-        _selectedMethod,
-      );
-    }
-  }
-
-  String _getMethodDisplayName(String method) {
-    switch (method.toLowerCase()) {
-      case 'totp':
-      case 'authenticator':
-        return 'Authenticator App (TOTP)';
-      case 'otp':
-      case 'emailotp':
-      case 'email':
-        return 'Email OTP';
-      case 'recovery':
-        return 'Recovery Code';
-      default:
-        return method.toUpperCase();
+      final code = _controllers.map((c) => c.text).join();
+      final method = (widget.initialMethod ?? 'totp').toLowerCase();
+      switch (method) {
+        case 'email':
+          _auth.verifyEmailOTP(code);
+        case 'emailotp':
+          // 이메일/OTP 인증 처리
+          _auth.verifyEmailOTP(code);
+        case 'otp':
+          _auth.verifyTOTP(code);
+          break;
+        case 'totp':
+          _auth.verifyTOTP(code);
+        case 'recovery':
+          // 복구코드 인증 처리
+          //_auth.verifyRecoveryCode(code);
+          break;
+        default:
+          // 기본 인증 처리(기존 방식)
+          _auth.verify2FA(code, method);
+      }
     }
   }
 
@@ -68,21 +76,21 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
     switch (method.toLowerCase()) {
       case 'totp':
       case 'authenticator':
-        return 'Enter the 6-digit code from your authenticator app';
+        return '인증 앱에서 생성된 6자리 코드를 입력하세요';
       case 'otp':
+        return '인증 앱에서 생성된 6자리 코드를 입력하세요';
       case 'emailotp':
       case 'email':
-        return 'Enter the code sent to your email';
+        return '이메일로 받은 인증번호 6자리를 입력하세요';
       case 'recovery':
-        return 'Enter one of your recovery codes';
+        return '복구 코드를 입력하세요';
       default:
-        return 'Enter your verification code';
+        return '인증번호를 입력하세요';
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    _auth = Get.find<AuthController>();
     _worker ??= ever<AuthState>(_auth.state, (next) {
       next.when(
         initial: () {},
@@ -105,101 +113,147 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
     final authState = _auth.state.value;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Two-Factor Authentication'),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
-      ),
       backgroundColor: Colors.grey[50],
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Icon(
-                  Icons.security,
-                  size: 80,
-                  color: Colors.blue[700],
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  'Two-Factor Authentication Required',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue[700],
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        'VRC',
+                        style: Theme.of(context).textTheme.headlineLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                              fontSize: 48,
+                            ),
                       ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                if (widget.availableMethods.length > 1) ...[
-                  Text(
-                    'Choose authentication method:',
-                    style: Theme.of(context).textTheme.titleMedium,
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 0,
+                        ),
+                        decoration: BoxDecoration(color: Colors.black),
+                        child: Text(
+                          'MX',
+                          style: Theme.of(context).textTheme.headlineLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                fontSize: 48,
+                              ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  ...widget.availableMethods.map((method) => RadioListTile<String>(
-                    title: Text(_getMethodDisplayName(method)),
-                    value: method,
-                    groupValue: _selectedMethod,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedMethod = value!;
-                      });
-                    },
-                  )),
                   const SizedBox(height: 24),
-                ],
-                Text(
-                  _getMethodDescription(_selectedMethod),
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[600],
-                      ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                TextFormField(
-                  controller: _codeController,
-                  decoration: InputDecoration(
-                    labelText: 'Verification Code',
-                    prefixIcon: const Icon(Icons.vpn_key),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                  Text(
+                    '인증번호 6자리를 입력하세요',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
                     ),
-                    filled: true,
-                    fillColor: Colors.white,
+                    textAlign: TextAlign.center,
                   ),
-                  keyboardType: TextInputType.number,
-                  textInputAction: TextInputAction.done,
-                  onFieldSubmitted: (_) => _handle2FA(),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter your verification code';
-                    }
-                    if (value.trim().length < 4) {
-                      return 'Code must be at least 4 characters';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 24),
-                authState.when(
-                  initial: () => _buildVerifyButton(),
-                  loading: () => _buildLoadingButton(),
-                  authenticated: (user) => _buildVerifyButton(),
-                  requires2FA: (methods) => _buildVerifyButton(),
-                  error: (message) => _buildVerifyButton(),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: const Text('Back to Login'),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(
+                    _getMethodDescription(widget.initialMethod ?? 'totp'),
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey[600],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(6, (i) {
+                      return Container(
+                        width: 44,
+                        height: 48,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        child: TextFormField(
+                          controller: _controllers[i],
+                          focusNode: _focusNodes[i],
+                          keyboardType: TextInputType.number,
+                          textAlign: TextAlign.center,
+                          maxLength: 1,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1,
+                          ),
+                          decoration: InputDecoration(
+                            counterText: '',
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.grey[400]!,
+                                width: 1.5,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.grey[400]!,
+                                width: 1.5,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: Colors.blue[700]!,
+                                width: 2,
+                              ),
+                            ),
+                          ),
+                          onChanged: (v) {
+                            if (v.isNotEmpty && i < 5) {
+                              _focusNodes[i + 1].requestFocus();
+                            } else if (v.isEmpty && i > 0) {
+                              _focusNodes[i - 1].requestFocus();
+                            }
+                          },
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return '';
+                            }
+                            if (!RegExp(r'^[0-9]$').hasMatch(v)) {
+                              return '';
+                            }
+                            return null;
+                          },
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 32),
+                  authState.when(
+                    initial: () => _buildSubmitButton(),
+                    loading: () => _buildLoadingButton(),
+                    authenticated: (user) => _buildSubmitButton(),
+                    requires2FA: (methods) => _buildSubmitButton(),
+                    error: (message) => _buildSubmitButton(),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -207,19 +261,19 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
     );
   }
 
-  Widget _buildVerifyButton() {
+  Widget _buildSubmitButton() {
     return ElevatedButton(
       onPressed: _handle2FA,
       style: ElevatedButton.styleFrom(
-        backgroundColor: Colors.blue[700],
+        backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+        shadowColor: Colors.transparent,
       ),
       child: const Text(
-        'Verify',
+        '인증하기',
         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
@@ -231,9 +285,7 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
       style: ElevatedButton.styleFrom(
         backgroundColor: Colors.grey[400],
         padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: const Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -247,10 +299,7 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
             ),
           ),
           SizedBox(width: 12),
-          Text(
-            'Verifying...',
-            style: TextStyle(fontSize: 16),
-          ),
+          Text('인증 중...', style: TextStyle(fontSize: 16)),
         ],
       ),
     );

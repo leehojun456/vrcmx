@@ -28,6 +28,26 @@ class User {
     this.platform,
     this.rawApiResponse,
   });
+
+  factory User.fromJson(Map<String, dynamic> json) {
+    return User(
+      id: json['id'] ?? '',
+      username: json['username'] ?? json['displayName'] ?? '',
+      displayName: json['displayName'] ?? '',
+      email: json['email'],
+      avatarImageUrl: json['currentAvatarImageUrl'],
+      isLoggedIn: json['isLoggedIn'] ?? true,
+      bio: json['bio'],
+      status: json['status'],
+      statusDescription: json['statusDescription'],
+      developerType: json['developerType'],
+      lastLogin: json['last_login'] != null
+          ? DateTime.tryParse(json['last_login'])
+          : null,
+      platform: json['last_platform'],
+      rawApiResponse: json,
+    );
+  }
 }
 
 class LoginRequest {
@@ -55,4 +75,3 @@ class LoginResponse {
     this.rawApiResponse,
   });
 }
-

@@ -2,8 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'views/splash_screen.dart';
 import 'bindings/app_bindings.dart';
+import 'services/push_service.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // 로컬 알림 채널 초기화만 수행 (FCM 미사용)
+  await PushService().init();
   runApp(const MainApp());
 }
 

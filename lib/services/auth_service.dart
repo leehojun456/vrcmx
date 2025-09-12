@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:vrcmx/constants/app_info.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vrcmx/models/friend.dart';
 import 'package:vrcmx/models/user.dart' as models;
@@ -116,7 +117,7 @@ class AuthService {
                 request.username,
                 request.password,
               ),
-              'User-Agent': 'VRCMX/1.0.0',
+              'User-Agent': AppInfo.userAgent,
             },
           )
           .timeout(const Duration(seconds: 10));
@@ -278,7 +279,7 @@ class AuthService {
       // 쿠키 기반 2FA 요청
       final headers = {
         'Content-Type': 'application/json',
-        'User-Agent': 'VRCMX/1.0.0',
+        'User-Agent': AppInfo.userAgent,
         'Cookie': 'auth=$_authCookie',
       };
       final body = jsonEncode({'code': code});
@@ -361,7 +362,7 @@ class AuthService {
             .put(
               Uri.parse('$baseUrl/logout'),
               headers: {
-                'User-Agent': 'VRCMX/1.0.0',
+                'User-Agent': AppInfo.userAgent,
                 'Cookie': 'auth=$_authCookie',
               },
             )
@@ -380,7 +381,7 @@ class AuthService {
       final response = await http
           .get(
             Uri.parse('$baseUrl/auth/user'),
-            headers: {'User-Agent': 'VRCMX/1.0.0'},
+            headers: {'User-Agent': AppInfo.userAgent},
           )
           .timeout(const Duration(seconds: 5));
 
@@ -409,7 +410,7 @@ class AuthService {
           .get(
             Uri.parse('$baseUrl/auth/user'),
             headers: {
-              'User-Agent': 'VRCMX/1.0.0',
+              'User-Agent': AppInfo.userAgent,
               'Cookie': 'auth=$_authCookie',
             },
           )
@@ -499,7 +500,7 @@ class AuthService {
       );
 
       final headers = {
-        'User-Agent': 'VRCMX/1.0.0',
+        'User-Agent': AppInfo.userAgent,
         'Cookie': 'auth=$_authCookie',
       };
 
@@ -684,7 +685,7 @@ class AuthService {
             Uri.parse('$baseUrl/auth/user/notifications/$notificationId'),
             headers: {
               'Content-Type': 'application/json',
-              'User-Agent': 'VRCMX/1.0.0',
+              'User-Agent': AppInfo.userAgent,
               'Cookie': 'auth=$_authCookie',
             },
             body: jsonEncode({'seen': true}),
@@ -705,7 +706,7 @@ class AuthService {
         headers: {
           'Content-Type': 'application/json',
           if (_authCookie != null) 'Cookie': 'auth=$_authCookie',
-          'User-Agent': 'VRCMX/1.0.0',
+        'User-Agent': AppInfo.userAgent,
         },
         body: jsonEncode({'code': code}),
       );
@@ -740,7 +741,7 @@ class AuthService {
         headers: {
           'Content-Type': 'application/json',
           if (_authCookie != null) 'Cookie': 'auth=$_authCookie',
-          'User-Agent': 'VRCMX/1.0.0',
+          'User-Agent': AppInfo.userAgent,
         },
         body: jsonEncode({'code': code}),
       );
@@ -773,7 +774,7 @@ class AuthService {
       final response = await http.get(
         Uri.parse('$baseUrl/auth/user'),
         headers: {
-          'User-Agent': 'VRCMX/1.0.0',
+          'User-Agent': AppInfo.userAgent,
           if (_authCookie != null) 'Cookie': 'auth=$_authCookie',
         },
       );

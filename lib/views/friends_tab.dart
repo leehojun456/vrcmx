@@ -284,14 +284,9 @@ class _FriendsTabState extends State<FriendsTab> {
     );
   }
 
-  Widget _buildFriendCard(Friend friend, {bool showDivider = true}) {
+  Widget _buildFriendCard(Friend friend) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: showDivider
-            ? const Border(bottom: BorderSide(color: Colors.grey, width: 0.5))
-            : null,
-      ),
+      decoration: const BoxDecoration(color: Colors.white),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Stack(
@@ -679,12 +674,17 @@ class _FriendsTabState extends State<FriendsTab> {
 
   // trust rank에 따라 닉네임 색상 반환 함수 (순서 상관없이 가장 높은 등급 적용)
   Color _getTrustColor(List<String>? tags) {
-    if (tags == null || tags.isEmpty) return Colors.black;
-    if (tags.contains('system_trust_veteran')) return Colors.purple;
-    if (tags.contains('system_trust_trusted')) return Colors.orange;
-    if (tags.contains('system_trust_known')) return Colors.green;
-    if (tags.contains('system_trust_basic')) return Colors.blue;
-    return Colors.black;
+    if (tags == null || tags.isEmpty)
+      return const Color(0xFFCCCCCC); // default gray
+    if (tags.contains('system_trust_veteran'))
+      return const Color(0xFFB18FFF); // purple
+    if (tags.contains('system_trust_trusted'))
+      return const Color(0xFFFF7B42); // orange
+    if (tags.contains('system_trust_known'))
+      return const Color(0xFF5ED061); // green
+    if (tags.contains('system_trust_basic'))
+      return const Color(0xFF1778FF); // blue
+    return const Color(0xFFCCCCCC); // default gray
   }
 
   // 원형 아이콘 버튼 위젯 함수 추가
@@ -832,8 +832,7 @@ class _FriendsTabState extends State<FriendsTab> {
                     itemCount: filtered.length,
                     itemBuilder: (context, idx) {
                       final friend = filtered[idx];
-                      final showDivider = idx != filtered.length - 1;
-                      return _buildFriendCard(friend, showDivider: showDivider);
+                      return _buildFriendCard(friend);
                     },
                   );
                 });

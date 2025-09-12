@@ -4,6 +4,7 @@ import 'package:vrcmx/models/auth_state.dart';
 import '../controllers/auth_controller.dart';
 import 'two_factor_page.dart';
 import 'home_screen.dart';
+import '../controllers/friends_controller.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -47,6 +48,9 @@ class _LoginPageState extends State<LoginPage> {
         initial: () {},
         loading: () {},
         authenticated: (user) {
+          // 로그인 성공 시 친구 리스트와 웹소켓 연결 재시작
+          final friendsController = Get.find<FriendsController>();
+          friendsController.bootstrap();
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
@@ -259,7 +263,7 @@ class _LoginPageState extends State<LoginPage> {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: Text(
-                  'VRCMX는 친구 관계에 도움을 줄 만한 정보를 \n제공하는 보조 어플리케이션입니다.\n\nVRCMX는 VRChat이 보증하지 않고,VRChat 개발/운영에 \n공식적으로 관련한 사람의 견해나 의견을 반영하지 않습니다.\n\nYEONUBI 혹은 C A L B는 \nVRCMX로 인한 문제의 책임을 지지 않습니다. \n본인의 책임하에 사용하시기 바랍니다! \n\nVRChat은 VRChat Inc.의 상표입니다. VRChat © VRChat Inc',
+                  'VRCMX는 친구 관계에 도움을 줄 만한 정보를 \n제공하는 보조 어플리케이션입니다.\n\nVRChat은 VRChat Inc.의 상표입니다. VRChat © VRChat Inc',
                   style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                   textAlign: TextAlign.center,
                 ),

@@ -15,10 +15,10 @@ class FriendsController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _bootstrap();
+    bootstrap();
   }
 
-  Future<void> _bootstrap() async {
+  Future<void> bootstrap() async {
     loading.value = true;
     errorMessage.value = '';
     try {
@@ -88,6 +88,7 @@ class FriendsController extends GetxController {
     String? status,
     String? statusDescription,
     String? lastPlatform,
+    List<String>? tags,
   }) {
     final idx = friends.indexWhere((f) => f.id == id);
     if (idx != -1) {
@@ -103,6 +104,7 @@ class FriendsController extends GetxController {
         location: location ?? old.location,
         lastPlatform: lastPlatform ?? old.lastPlatform,
         lastLogin: old.lastLogin,
+        tags: tags ?? old.tags,
       );
     }
   }

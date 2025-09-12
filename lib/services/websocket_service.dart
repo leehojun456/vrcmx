@@ -8,10 +8,13 @@ import 'package:get/get_core/src/get_main.dart';
 
 import '../controllers/friends_controller.dart';
 import '../models/friend.dart';
-import '../models/notification.dart';
+// import '../models/notification.dart';
 import 'auth_service.dart';
+import 'package:vrcmx/constants/app_info.dart';
 
 class WebSocketService {
+  Timer? _connectionMonitorTimer;
+  final Duration _connectionMonitorInterval = const Duration(seconds: 10);
   static const String wsUrl = 'wss://pipeline.vrchat.cloud/';
 
   final AuthService _authService;
@@ -23,17 +26,41 @@ class WebSocketService {
 
   Timer? _reconnectTimer;
   int _reconnectAttempts = 0;
-  static const int maxReconnectAttempts = 5;
-  static const Duration reconnectDelay = Duration(seconds: 5);
+  // 재연결: 지수 백오프 + 지터 (HTTP 폴링 금지)
+  final Duration _reconnectBaseDelay = const Duration(seconds: 2);
+  final Duration _reconnectMaxDelay = const Duration(minutes: 1);
+  // bool _manuallyClosed = false; // 수동 연결 해제 상태 제거
 
   // 현재 친구 목록 캐시
   List<Friend> _currentFriends = [];
 
   WebSocketService(this._authService);
 
+  void _startConnectionMonitor() {
+    print('[DEBUG] 연결 상태 모니터링 타이머 시작');
+    _connectionMonitorTimer?.cancel();
+    _connectionMonitorTimer = Timer.periodic(_connectionMonitorInterval, (
+      timer,
+    ) {
+      print('[DEBUG] 연결 상태 체크: isConnected=$_isConnected');
+      if (!_isConnected) {
+        print('[DEBUG] 연결 끊김 감지 → 재연결 시도');
+        connect();
+      }
+    });
+  }
+
+  void _stopConnectionMonitor() {
+    print('[DEBUG] 연결 상태 모니터링 타이머 중지');
+    _connectionMonitorTimer?.cancel();
+    _connectionMonitorTimer = null;
+  }
+
   /// 웹소켓 실시간 연결 시작
   Future<bool> connect() async {
+    print('[DEBUG] connect() 호출됨');
     try {
+      // _manuallyClosed = false; // 수동 연결 해제 상태 제거
       await _authService.loadSavedCookie();
 
       if (_authService.authCookie == null || _authService.authCookie!.isEmpty) {
@@ -43,6 +70,7 @@ class WebSocketService {
 
       // 기존 연결이 있으면 중지
       await disconnect();
+      _startConnectionMonitor();
 
       print('🔄 웹소켓 연결 시도 중...');
       print('🍪 사용할 쿠키: ${_authService.authCookie}');
@@ -88,10 +116,7 @@ class WebSocketService {
       request.headers.set('Upgrade', 'websocket');
       request.headers.set('Sec-WebSocket-Version', '13');
       request.headers.set('Sec-WebSocket-Key', webSocketKey);
-      request.headers.set(
-        'User-Agent',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36 Edg/140.0.0.0',
-      );
+      request.headers.set('User-Agent', AppInfo.userAgent);
       request.headers.set('Origin', 'https://vrchat.com');
 
       final response = await request.close();
@@ -103,10 +128,13 @@ class WebSocketService {
         // 성공! 소켓을 WebSocket으로 변환
         final socket = await response.detachSocket();
         _webSocket = WebSocket.fromUpgradedSocket(socket, serverSide: false);
+        // 핑으로 유휴 연결 상태 감지 (응답 없으면 연결 종료됨)
+        _webSocket!.pingInterval = const Duration(seconds: 20);
 
         print('✅ 수동 웹소켓 연결 성공!');
         _isConnected = true;
         _reconnectAttempts = 0;
+        _notifyConnection(true);
       } else {
         print('❌ 수동 핸드셰이크 실패: ${response.statusCode}');
         throw Exception('WebSocket upgrade failed: ${response.statusCode}');
@@ -115,7 +143,7 @@ class WebSocketService {
       // 연결 확인을 위한 타임아웃
       final connectionTimeout = Timer(const Duration(seconds: 10), () {
         if (!_isConnected) {
-          print('❌ 웹소켓 연결 타임아웃 - HTTP 폴링으로 전환');
+          print('❌ 웹소켓 연결 타임아웃 - 재연결 시도 예정');
           _onError('Connection timeout');
         }
       });
@@ -140,16 +168,22 @@ class WebSocketService {
     } catch (e) {
       print('❌ 웹소켓 연결 오류: $e');
       _isConnected = false;
+      _notifyConnection(false);
+      _scheduleReconnect();
       return false;
     }
   }
 
   /// 웹소켓 연결 해제
   Future<void> disconnect() async {
+    print('[DEBUG] disconnect() 호출됨');
     print('🔌 웹소켓 연결 해제');
+    // _manuallyClosed = true; // 수동 연결 해제 상태 제거
 
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+
+    _stopConnectionMonitor();
 
     await _subscription?.cancel();
     _subscription = null;
@@ -162,6 +196,7 @@ class WebSocketService {
 
   /// 메시지 수신 처리
   void _onMessage(dynamic message) {
+    print('[DEBUG] _onMessage() 호출됨');
     try {
       print('📨 웹소켓 메시지 수신: $message');
 
@@ -171,37 +206,98 @@ class WebSocketService {
       if (messageType == null) return;
 
       switch (messageType) {
-        case 'notification':
-          break;
-        case 'friend-online':
         case 'friend-offline':
-        case 'friend-location':
-        case 'friend-update':
           {
-            // 친구 정보 실시간 갱신
             final contentStr = data['content'] as String?;
             if (contentStr != null) {
               final content = jsonDecode(contentStr);
-              final id = content['userId'] ?? content['id'];
-              if (id != null) {
-                final location = content['location'] as String?;
-                final status = content['status'] as String?;
-                final statusDescription =
-                    content['statusDescription'] as String?;
-                final lastPlatform =
-                    content['last_platform'] as String? ??
-                    content['lastPlatform'] as String?;
-                try {
-                  Get.find<FriendsController>().updateFriendInfo(
-                    id: id,
-                    location: location,
-                    status: status,
-                    statusDescription: statusDescription,
-                    lastPlatform: lastPlatform,
-                  );
-                } catch (e) {
-                  print('친구 정보 갱신 오류: $e');
+              final id =
+                  content['userId'] ?? content['userid'] ?? content['id'];
+              final lastPlatform = content['platform'] as String?;
+              try {
+                Get.find<FriendsController>().updateFriendInfo(
+                  id: id,
+                  lastPlatform: lastPlatform,
+                  status: 'offline',
+                );
+              } catch (e) {
+                print('친구 정보 갱신 오류: $e');
+              }
+            }
+            break;
+          }
+        case 'friend-online':
+        case 'friend-active':
+        case 'friend-location':
+        case 'friend-update':
+          {
+            final contentStr = data['content'] as String?;
+            if (contentStr != null) {
+              final content = jsonDecode(contentStr);
+              final id =
+                  content['userId'] ?? content['userid'] ?? content['id'];
+              // user object가 있으면 더 많은 정보 갱신
+              final userObj = content['user'] as Map<String, dynamic>?;
+              String? status;
+              String? statusDescription;
+              String? location;
+              String? lastPlatform;
+              List<String>? tags;
+              if (userObj != null) {
+                status = userObj['status'] as String?;
+                statusDescription = userObj['statusDescription'] as String?;
+                location =
+                    userObj['location'] as String? ??
+                    content['location'] as String?;
+                lastPlatform =
+                    userObj['last_platform'] as String? ??
+                    userObj['lastPlatform'] as String? ??
+                    content['platform'] as String?;
+                final tagsRaw = userObj['tags'] ?? content['tags'];
+                if (tagsRaw is List) {
+                  tags = tagsRaw.whereType<String>().toList();
                 }
+              } else {
+                location = content['location'] as String?;
+                status = content['status'] as String?;
+                statusDescription = content['statusDescription'] as String?;
+                lastPlatform =
+                    content['last_platform'] as String? ??
+                    content['lastPlatform'] as String? ??
+                    content['platform'] as String?;
+                final tagsRaw = content['tags'];
+                if (tagsRaw is List) {
+                  tags = tagsRaw.whereType<String>().toList();
+                }
+              }
+              try {
+                Get.find<FriendsController>().updateFriendInfo(
+                  id: id,
+                  location: location,
+                  status: status,
+                  statusDescription: statusDescription,
+                  lastPlatform: lastPlatform,
+                  tags: tags,
+                );
+              } catch (e) {
+                print('친구 정보 갱신 오류: $e');
+              }
+            }
+            break;
+          }
+        case 'friend-delete':
+          {
+            final contentStr = data['content'] as String?;
+            if (contentStr != null) {
+              final content = jsonDecode(contentStr);
+              final id =
+                  content['userId'] ?? content['userid'] ?? content['id'];
+              try {
+                // 친구 삭제: friends 리스트에서 제거
+                final controller = Get.find<FriendsController>();
+                controller.friends.removeWhere((f) => f.id == id);
+              } catch (e) {
+                print('친구 삭제 오류: $e');
               }
             }
             break;
@@ -209,6 +305,48 @@ class WebSocketService {
         case 'user-location':
           _handleUserLocationMessage(data);
           break;
+        case 'user-update':
+          {
+            final contentStr = data['content'] as String?;
+            if (contentStr != null) {
+              final content = jsonDecode(contentStr);
+              final id =
+                  content['userId'] ?? content['userid'] ?? content['id'];
+              final userObj = content['user'] as Map<String, dynamic>?;
+              // Removed unused variables: displayName, bio, currentAvatarImageUrl, currentAvatarThumbnailImageUrl
+              String? status;
+              String? statusDescription;
+              String? location;
+              String? lastPlatform;
+              List<String>? tags;
+              if (userObj != null) {
+                // Removed assignments to undefined variables: displayName, bio, currentAvatarImageUrl, currentAvatarThumbnailImageUrl
+                status = userObj['status'] as String?;
+                statusDescription = userObj['statusDescription'] as String?;
+                location = userObj['location'] as String?;
+                lastPlatform =
+                    userObj['last_platform'] as String? ??
+                    userObj['lastPlatform'] as String?;
+                final tagsRaw = userObj['tags'];
+                if (tagsRaw is List) {
+                  tags = tagsRaw.whereType<String>().toList();
+                }
+              }
+              try {
+                Get.find<FriendsController>().updateFriendInfo(
+                  id: id,
+                  location: location,
+                  status: status,
+                  statusDescription: statusDescription,
+                  lastPlatform: lastPlatform,
+                  tags: tags,
+                );
+              } catch (e) {
+                print('유저 정보 갱신 오류: $e');
+              }
+            }
+            break;
+          }
         default:
           print('🔍 알 수 없는 메시지 타입: $messageType');
           break;
@@ -233,31 +371,41 @@ class WebSocketService {
 
   /// 연결 오류 처리
   void _onError(error) {
+    print('[DEBUG] _onError() 호출됨');
     print('❌ 웹소켓 오류: $error');
     _isConnected = false;
+    _notifyConnection(false);
     _scheduleReconnect();
   }
 
   /// 연결 종료 처리
   void _onDisconnected() {
+    print('[DEBUG] _onDisconnected() 호출됨');
     print('🔌 웹소켓 연결 종료됨');
     _isConnected = false;
+    _notifyConnection(false);
     _scheduleReconnect();
   }
 
   /// 재연결 스케줄링
   void _scheduleReconnect() {
-    if (_reconnectAttempts >= maxReconnectAttempts) {
-      print('❌ 최대 재연결 시도 횟수 초과');
-      return;
-    }
+    print('[DEBUG] _scheduleReconnect() 호출됨');
+    // 항상 재연결 시도 (수동 연결 해제 상태 제거)
 
     _reconnectAttempts++;
-    print(
-      '🔄 재연결 시도 $_reconnectAttempts/$maxReconnectAttempts (${reconnectDelay.inSeconds}초 후)',
-    );
+    // 지수 백오프 계산 (최대 _reconnectMaxDelay), 0~30% 지터 추가
+    final baseMs = _reconnectBaseDelay.inMilliseconds;
+    final capMs = _reconnectMaxDelay.inMilliseconds;
+    final exp = 1 << (_reconnectAttempts - 1);
+    var waitMs = baseMs * exp;
+    if (waitMs > capMs) waitMs = capMs;
+    final jitter = (waitMs * (Random().nextDouble() * 0.3)).toInt();
+    final delay = Duration(milliseconds: waitMs + jitter);
 
-    _reconnectTimer = Timer(reconnectDelay, () async {
+    print('🔄 재연결 예약: ${delay.inSeconds}s 후 (시도: $_reconnectAttempts)');
+
+    _reconnectTimer?.cancel();
+    _reconnectTimer = Timer(delay, () async {
       await connect();
     });
   }
@@ -269,6 +417,13 @@ class WebSocketService {
   }
 
   void dispose() {
+    _stopConnectionMonitor();
     disconnect();
+  }
+
+  void _notifyConnection(bool value) {
+    try {
+      Get.find<FriendsController>().isConnected.value = value;
+    } catch (_) {}
   }
 }

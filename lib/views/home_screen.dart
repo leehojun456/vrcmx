@@ -26,22 +26,30 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
 
     return Scaffold(
+      extendBody: false,
       body: IndexedStack(index: _currentIndex, children: pages),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue[700],
-        unselectedItemColor: Colors.grey[600],
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.people), label: '친구'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
-        ],
+      bottomNavigationBar: SafeArea(
+        top: false,
+        bottom: true,
+        child: Container(
+          color: Colors.white,
+          child: BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (index) {
+              setState(() {
+                _currentIndex = index;
+              });
+            },
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: Colors.blue[700],
+            unselectedItemColor: Colors.grey[600],
+            items: const [
+              BottomNavigationBarItem(icon: Icon(Icons.people), label: '친구'),
+              BottomNavigationBarItem(icon: Icon(Icons.person), label: '프로필'),
+              BottomNavigationBarItem(icon: Icon(Icons.settings), label: '설정'),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:vrcmx/constants/app_info.dart';
 
 // 전역 이미지 캐시
 class ImageCache {
@@ -85,7 +86,7 @@ class VRChatCircleAvatar extends StatelessWidget {
       final response = await http.get(
         Uri.parse(imageUrl!),
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'User-Agent': AppInfo.userAgent,
           'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
           'Accept-Encoding': 'gzip, deflate, br',
           'Accept-Language': 'en-US,en;q=0.9',

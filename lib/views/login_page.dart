@@ -4,7 +4,6 @@ import 'package:vrcmx/models/auth_state.dart';
 import '../controllers/auth_controller.dart';
 import 'two_factor_page.dart';
 import 'home_screen.dart';
-import '../controllers/friends_controller.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -48,9 +47,7 @@ class _LoginPageState extends State<LoginPage> {
         initial: () {},
         loading: () {},
         authenticated: (user) {
-          // 로그인 성공 시 친구 리스트와 웹소켓 연결 재시작
-          final friendsController = Get.find<FriendsController>();
-          friendsController.bootstrap();
+          // 로그인 성공 시 홈 화면으로 이동 (친구 리스트는 친구 탭에서 로드)
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           );
@@ -84,287 +81,217 @@ class _LoginPageState extends State<LoginPage> {
       );
     });
 
-    final authState = _auth.state.value;
-
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 32.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
+      resizeToAvoidBottomInset: true,
+      body: SafeArea(child: _buildBody()),
+    );
+  }
+
+  Widget _buildBody() {
+    final authState = _auth.state.value;
+
+    return SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight:
+              MediaQuery.of(context).size.height -
+              MediaQuery.of(context).padding.top -
+              MediaQuery.of(context).padding.bottom,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // 상단 여백 (빈 박스)
+              const SizedBox(height: 40),
+
+              // 중간: 로고 + 입력 박스 그룹
+              Column(
+                children: [
+                  // 로고 섹션
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Text(
-                            'VRC',
-                            style: Theme.of(context).textTheme.headlineLarge
-                                ?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black,
-                                  fontSize: 72,
-                                ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 0,
-                            ),
-                            decoration: BoxDecoration(color: Colors.black),
-                            child: Text(
-                              'MX',
-                              style: Theme.of(context).textTheme.headlineLarge
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                    fontSize: 72,
-                                  ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
                       Text(
-                        'VRChat Mobile eXperience',
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                        textAlign: TextAlign.left,
-                      ),
-                      const SizedBox(height: 72),
-                      TextFormField(
-                        controller: _usernameController,
-                        decoration: InputDecoration(
-                          labelText: 'Username',
-                          labelStyle: MaterialStateTextStyle.resolveWith((
-                            states,
-                          ) {
-                            if (states.contains(MaterialState.focused)) {
-                              return const TextStyle(color: Colors.black);
-                            }
-                            return TextStyle(color: Colors.grey[400]);
-                          }),
-                          prefixIcon: Icon(
-                            Icons.person,
-                            color: Colors.grey[400],
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[400]!),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[400]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.black),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          hintStyle: TextStyle(color: Colors.grey[400]),
-                          prefixIconColor: Colors.grey[400],
-                          focusColor: Colors.black,
-                        ),
-                        validator: (value) {
-                          if (value == null || value.trim().isEmpty) {
-                            return '아이디를 입력하세요';
-                          }
-                          return null;
-                        },
-                        textInputAction: TextInputAction.next,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _passwordController,
-                        obscureText: _obscurePassword,
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          labelStyle: MaterialStateTextStyle.resolveWith((
-                            states,
-                          ) {
-                            if (states.contains(MaterialState.focused)) {
-                              return const TextStyle(color: Colors.black);
-                            }
-                            return TextStyle(color: Colors.grey[400]);
-                          }),
-                          prefixIcon: Icon(Icons.lock, color: Colors.grey[400]),
-                          suffixIcon: IconButton(
-                            icon: Icon(
-                              _obscurePassword
-                                  ? Icons.visibility
-                                  : Icons.visibility_off,
-                              color: Colors.grey[400],
+                        'VRC',
+                        style: Theme.of(context).textTheme.headlineLarge
+                            ?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black,
+                              fontSize: 72,
                             ),
-                            onPressed: () {
-                              setState(() {
-                                _obscurePassword = !_obscurePassword;
-                              });
-                            },
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[400]!),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.grey[400]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.black),
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          hintStyle: TextStyle(color: Colors.grey[400]),
-                          prefixIconColor: Colors.grey[400],
-                          focusColor: Colors.black,
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 0,
                         ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return '비밀번호를 입력하세요';
-                          }
-                          return null;
-                        },
-                        textInputAction: TextInputAction.done,
-                        onFieldSubmitted: (_) => _handleLogin(),
-                      ),
-                      const SizedBox(height: 24),
-                      authState.when(
-                        initial: () => _buildLoginButton(),
-                        loading: () => _buildLoadingButton(),
-                        authenticated: (user) =>
-                            _buildLoginButton(), // 이미 홈으로 이동하므로 로그인 버튼 표시
-                        requires2FA: (methods) => _buildLoginButton(),
-                        error: (message) => _buildLoginButton(),
-                      ),
-                      const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () => _auth.clearError(),
-                        child: const Text('Forgot Password?'),
+                        decoration: BoxDecoration(color: Colors.black),
+                        child: Text(
+                          'MX',
+                          style: Theme.of(context).textTheme.headlineLarge
+                              ?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                                fontSize: 72,
+                              ),
+                        ),
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'VRChat Mobile eXperience',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+                    textAlign: TextAlign.left,
+                  ),
+
+                  // 폼 섹션
+                  const SizedBox(height: 72),
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextFormField(
+                          controller: _usernameController,
+                          decoration: InputDecoration(
+                            labelText: 'Username',
+                            labelStyle: WidgetStateTextStyle.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.focused)) {
+                                return const TextStyle(color: Colors.black);
+                              }
+                              return TextStyle(color: Colors.grey[400]);
+                            }),
+                            prefixIcon: Icon(
+                              Icons.person,
+                              color: Colors.grey[400],
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.black),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            hintStyle: TextStyle(color: Colors.grey[400]),
+                            prefixIconColor: Colors.grey[400],
+                            focusColor: Colors.black,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return '아이디를 입력하세요';
+                            }
+                            return null;
+                          },
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 16),
+                        TextFormField(
+                          controller: _passwordController,
+                          obscureText: _obscurePassword,
+                          decoration: InputDecoration(
+                            labelText: 'Password',
+                            labelStyle: WidgetStateTextStyle.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.focused)) {
+                                return const TextStyle(color: Colors.black);
+                              }
+                              return TextStyle(color: Colors.grey[400]);
+                            }),
+                            prefixIcon: Icon(
+                              Icons.lock,
+                              color: Colors.grey[400],
+                            ),
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _obscurePassword
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                                color: Colors.grey[400],
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _obscurePassword = !_obscurePassword;
+                                });
+                              },
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.black),
+                            ),
+                            filled: true,
+                            fillColor: Colors.white,
+                            hintStyle: TextStyle(color: Colors.grey[400]),
+                            prefixIconColor: Colors.grey[400],
+                            focusColor: Colors.black,
+                          ),
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return '비밀번호를 입력하세요';
+                            }
+                            return null;
+                          },
+                          textInputAction: TextInputAction.done,
+                          onFieldSubmitted: (_) => _handleLogin(),
+                        ),
+                        const SizedBox(height: 24),
+                        authState.when(
+                          initial: () => _buildLoginButton(),
+                          loading: () => _buildLoadingButton(),
+                          authenticated: (user) => _buildLoginButton(),
+                          requires2FA: (methods) => _buildLoginButton(),
+                          error: (message) => _buildLoginButton(),
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () => _auth.clearError(),
+                          child: const Text('Forgot Password?'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 16,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
+
+              // 하단 안내문
+              Padding(
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.of(context).padding.bottom + 12,
+                ),
                 child: Text(
                   'VRCMX는 친구 관계에 도움을 줄 만한 정보를 \n제공하는 보조 어플리케이션입니다.\n\nVRChat은 VRChat Inc.의 상표입니다. VRChat © VRChat Inc',
                   style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                   textAlign: TextAlign.center,
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _show2FAMethodDialog(List<String> methods) {
-    String selected = methods.isNotEmpty ? methods.first : 'totp';
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: EdgeInsets.only(
-            left: 16,
-            right: 16,
-            top: 16,
-            bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Two-Factor Authentication Required',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Select a verification method to continue.',
-                style: TextStyle(color: Colors.black54),
-              ),
-              const SizedBox(height: 12),
-              if (methods.isEmpty)
-                const Text('No methods available, defaulting to TOTP.'),
-              ...((methods.isNotEmpty ? methods : ['totp']).map((m) {
-                String display;
-                switch (m.toLowerCase()) {
-                  case 'totp':
-                  case 'authenticator':
-                    display = 'Authenticator App (TOTP)';
-                    break;
-                  case 'otp':
-                  case 'emailotp':
-                  case 'email':
-                    display = 'Email OTP';
-                    break;
-                  case 'recovery':
-                    display = 'Recovery Code';
-                    break;
-                  default:
-                    display = m.toUpperCase();
-                }
-                return RadioListTile<String>(
-                  title: Text(display),
-                  value: m,
-                  groupValue: selected,
-                  onChanged: (v) {
-                    setState(() {
-                      selected = v ?? selected;
-                    });
-                  },
-                );
-              })),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancel'),
-                  ),
-                  const SizedBox(width: 8),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (context) => TwoFactorPage(
-                            availableMethods: methods,
-                            initialMethod: selected,
-                          ),
-                        ),
-                      );
-                    },
-                    child: const Text('Continue'),
-                  ),
-                ],
-              ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 

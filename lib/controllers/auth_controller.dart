@@ -16,6 +16,9 @@ class AuthController extends GetxController {
       final resp = await _auth.tryAutoLogin();
       if (resp.success && resp.user != null) {
         state.value = AuthState.authenticated(resp.user!);
+      } else if (resp.message == '2FA_REQUIRED') {
+        // 자동 로그인 시에도 2차 인증이 필요한 경우 처리
+        state.value = AuthState.requires2FA(resp.twoFactorMethods);
       } else {
         state.value = const AuthState.initial();
       }

@@ -88,9 +88,17 @@ class _FriendsTabState extends State<FriendsTab> {
   }
 
   Future<void> _loadFriends() async {
+    // 이미 로딩 중이거나 쿨다운 중이면 새로고침 하지 않음
+    if (c.loading.value || !c.canRefresh.value) {
+      // .value 추가
+      print('새로고침이 불가능한 상태입니다.');
+      return;
+    }
+
     setState(() {
       _errorMessage = '';
     });
+    print('새로고침 버튼으로 친구 목록 새로고침 실행');
     await c.refreshFriends();
   }
 
@@ -292,6 +300,7 @@ class _FriendsTabState extends State<FriendsTab> {
         leading: Stack(
           children: [
             VRChatCircleAvatar(
+              id: friend.id,
               radius: 25,
               imageUrl: friend.currentAvatarThumbnailImageUrl,
               child: const Icon(Icons.person),
@@ -441,6 +450,7 @@ class _FriendsTabState extends State<FriendsTab> {
                       child: Column(
                         children: [
                           VRChatCircleAvatar(
+                            id: friend.id,
                             radius: 50,
                             imageUrl: friend.currentAvatarImageUrl,
                             child: const Icon(Icons.person, size: 50),
@@ -728,11 +738,58 @@ class _FriendsTabState extends State<FriendsTab> {
           statusBarIconBrightness: Brightness.dark,
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh, color: Colors.blue),
-            onPressed: _loadFriends,
-            tooltip: '새로고침',
-          ),
+          Obx(() {
+            final isLoading = c.loading.value;
+            final canRefresh = c.canRefresh.value; // .value 추가
+            final isEnabled = !isLoading && canRefresh;
+
+            // 디버깅을 위한 로그
+            if (!isEnabled) {
+              print(
+                '새로고침 버튼 비활성화: isLoading=$isLoading, canRefresh=$canRefresh, remainingSeconds=${c.remainingCooldownSeconds}',
+              );
+            }
+
+            return Container(
+              margin: const EdgeInsets.only(right: 12),
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isEnabled ? Colors.black : Colors.grey,
+                  width: 1.2,
+                ),
+              ),
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                iconSize: 18,
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 1.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.grey,
+                          ),
+                        ),
+                      )
+                    : Icon(
+                        Icons.refresh,
+                        color: isEnabled ? Colors.black : Colors.grey,
+                        size: 18,
+                      ),
+                onPressed: isEnabled ? _loadFriends : null,
+                tooltip: isLoading
+                    ? '로딩 중...'
+                    : !canRefresh
+                    ? '${c.remainingCooldownSeconds}초 후 사용 가능'
+                    : '새로고침',
+              ),
+            );
+          }),
         ],
       ),
       body: Column(

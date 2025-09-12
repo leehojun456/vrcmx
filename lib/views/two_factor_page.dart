@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import '../models/auth_state.dart';
 import '../controllers/auth_controller.dart';
@@ -72,6 +73,19 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
     }
   }
 
+  void _checkAndAutoSubmit() {
+    // 모든 칸이 채워져 있는지 확인
+    final allFilled = _controllers.every(
+      (controller) => controller.text.isNotEmpty,
+    );
+    if (allFilled) {
+      // 잠시 후 자동으로 인증 실행 (사용자가 확인할 수 있도록)
+      Future.delayed(const Duration(milliseconds: 300), () {
+        _handle2FA();
+      });
+    }
+  }
+
   String _getMethodDescription(String method) {
     switch (method.toLowerCase()) {
       case 'totp':
@@ -96,6 +110,7 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
         initial: () {},
         loading: () {},
         authenticated: (user) {
+          // 2FA 인증 성공 시 홈 화면으로 이동 (친구 리스트는 친구 탭에서 로드)
           Navigator.of(context).pushAndRemoveUntil(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
             (route) => false,
@@ -189,7 +204,10 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
                           focusNode: _focusNodes[i],
                           keyboardType: TextInputType.number,
                           textAlign: TextAlign.center,
-                          maxLength: 1,
+                          maxLength: i == 0 ? 6 : 1, // 첫 번째 칸은 6자리까지 허용
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
@@ -225,8 +243,33 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
                             ),
                           ),
                           onChanged: (v) {
+                            // 첫 번째 칸에서 6자리 입력 (붙여넣기) 처리
+                            if (i == 0 && v.length >= 6) {
+                              final numbers = v.replaceAll(
+                                RegExp(r'[^0-9]'),
+                                '',
+                              );
+                              if (numbers.length >= 6) {
+                                // 각 칸에 분배
+                                for (int j = 0; j < 6; j++) {
+                                  _controllers[j].text = numbers[j];
+                                }
+                                // 자동 인증 실행
+                                Future.delayed(
+                                  const Duration(milliseconds: 200),
+                                  () {
+                                    _handle2FA();
+                                  },
+                                );
+                                return;
+                              }
+                            }
+
+                            // 일반적인 한 글자 입력
                             if (v.isNotEmpty && i < 5) {
                               _focusNodes[i + 1].requestFocus();
+                              // 모든 칸이 채워졌는지 확인
+                              _checkAndAutoSubmit();
                             } else if (v.isEmpty && i > 0) {
                               _focusNodes[i - 1].requestFocus();
                             }
@@ -235,8 +278,16 @@ class _TwoFactorPageState extends State<TwoFactorPage> {
                             if (v == null || v.isEmpty) {
                               return '';
                             }
-                            if (!RegExp(r'^[0-9]$').hasMatch(v)) {
-                              return '';
+                            // 첫 번째 칸은 최대 6자리까지 허용
+                            if (i == 0) {
+                              if (!RegExp(r'^[0-9]{1,6}$').hasMatch(v)) {
+                                return '';
+                              }
+                            } else {
+                              // 나머지 칸은 1자리만
+                              if (!RegExp(r'^[0-9]$').hasMatch(v)) {
+                                return '';
+                              }
                             }
                             return null;
                           },

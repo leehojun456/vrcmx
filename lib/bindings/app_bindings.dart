@@ -14,8 +14,8 @@ class AppBindings extends Bindings {
       permanent: true,
     );
 
-    // Feature controllers
-    Get.put<FriendsController>(FriendsController(), permanent: true);
+    // Feature controllers - AuthController must be registered before FriendsController
     Get.put<AuthController>(AuthController(), permanent: true);
+    Get.put<FriendsController>(FriendsController(), permanent: true);
   }
 }

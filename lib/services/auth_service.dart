@@ -422,6 +422,26 @@ class AuthService {
       if (response.statusCode == 200) {
         final userData = jsonDecode(response.body);
 
+        // 2FA가 필요한지 확인
+        if (userData.containsKey('requiresTwoFactorAuth') &&
+            userData['requiresTwoFactorAuth'] is List &&
+            (userData['requiresTwoFactorAuth'] as List).isNotEmpty) {
+          print('🔐 자동 로그인 시 2FA 필요함');
+
+          final twoFactorMethods = List<String>.from(
+            userData['requiresTwoFactorAuth'],
+          );
+
+          return models.LoginResponse(
+            success: false,
+            message: '2FA_REQUIRED',
+            requires2FA: true,
+            twoFactorMethods: twoFactorMethods,
+            rawApiResponse: userData,
+          );
+        }
+
+        // 일반 자동 로그인 성공
         final user = models.User(
           id: userData['id'] ?? '',
           username: userData['username'] ?? userData['displayName'] ?? '',
@@ -706,7 +726,7 @@ class AuthService {
         headers: {
           'Content-Type': 'application/json',
           if (_authCookie != null) 'Cookie': 'auth=$_authCookie',
-        'User-Agent': AppInfo.userAgent,
+          'User-Agent': AppInfo.userAgent,
         },
         body: jsonEncode({'code': code}),
       );

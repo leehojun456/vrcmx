@@ -135,6 +135,9 @@ class WebSocketService {
         _isConnected = true;
         _reconnectAttempts = 0;
         _notifyConnection(true);
+
+        // 웹소켓 재연결 시 친구 리스트 새로고침 (쿨다운 무시)
+        _refreshFriendsOnReconnection();
       } else {
         print('❌ 수동 핸드셰이크 실패: ${response.statusCode}');
         throw Exception('WebSocket upgrade failed: ${response.statusCode}');
@@ -425,5 +428,16 @@ class WebSocketService {
     try {
       Get.find<FriendsController>().isConnected.value = value;
     } catch (_) {}
+  }
+
+  /// 웹소켓 재연결 시 친구 리스트 새로고침 (쿨다운 무시)
+  void _refreshFriendsOnReconnection() {
+    try {
+      final friendsController = Get.find<FriendsController>();
+      // 웹소켓 재연결 시에는 쿨다운을 무시하고 친구 리스트 새로고침
+      friendsController.refreshFriendsForReconnection();
+    } catch (e) {
+      print('웹소켓 재연결 시 친구 리스트 새로고침 실패: $e');
+    }
   }
 }

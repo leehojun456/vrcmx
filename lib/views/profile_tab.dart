@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import '../models/auth_state.dart';
 import '../controllers/auth_controller.dart';
 import '../widgets/vrchat_network_image.dart';
 import 'api_response_view.dart';
@@ -64,6 +63,7 @@ class ProfileTab extends StatelessWidget {
                   child: Column(
                     children: [
                       VRChatCircleAvatar(
+                        id: user.id,
                         radius: 60,
                         imageUrl: user.avatarImageUrl,
                         child: const Icon(Icons.person, size: 60),

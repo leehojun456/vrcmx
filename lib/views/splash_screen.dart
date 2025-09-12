@@ -4,6 +4,7 @@ import 'package:vrcmx/models/auth_state.dart';
 import '../controllers/auth_controller.dart';
 import 'login_page.dart';
 import 'home_screen.dart';
+import 'two_factor_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -45,6 +46,29 @@ class _SplashScreenState extends State<SplashScreen> {
             );
           }
         },
+        requires2FA: (methods) {
+          // 자동 로그인 시 2FA 필요 - 2FA 페이지로 이동
+          if (mounted) {
+            String selected;
+            if (methods.length == 1) {
+              selected = methods.first;
+            } else if (methods.contains('otp')) {
+              selected = 'otp';
+            } else if (methods.contains('emailOtp')) {
+              selected = 'emailOtp';
+            } else {
+              selected = methods.first;
+            }
+            Navigator.of(context).pushReplacement(
+              MaterialPageRoute(
+                builder: (context) => TwoFactorPage(
+                  availableMethods: methods,
+                  initialMethod: selected,
+                ),
+              ),
+            );
+          }
+        },
       );
     });
 
@@ -53,8 +77,6 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final authState = _auth.state.value;
-
     return Scaffold(
       backgroundColor: Colors.blue[700],
       body: SafeArea(

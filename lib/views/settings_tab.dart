@@ -16,8 +16,12 @@ class SettingsTab extends StatelessWidget {
     final authState = auth.state.value;
 
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('설정'),
+        title: const Text(
+          '설정',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+        ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         automaticallyImplyLeading: false,
@@ -41,68 +45,40 @@ class SettingsTab extends StatelessWidget {
 
   Widget _buildSettingsContent(BuildContext context, user) {
     return ListView(
-      padding: const EdgeInsets.all(16),
       children: [
-        // 설정 메뉴들
-        const Text(
-          '계정',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ListTile(
+          leading: const Icon(Icons.api),
+          title: const Text('VRChat API 응답 보기'),
+          subtitle: const Text('로그인 시 받은 원본 데이터 확인'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ApiResponseView(user: user),
+              ),
+            );
+          },
         ),
-        const SizedBox(height: 8),
-
-        Card(
-          child: Column(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.api),
-                title: const Text('VRChat API 응답 보기'),
-                subtitle: const Text('로그인 시 받은 원본 데이터 확인'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => ApiResponseView(user: user),
-                    ),
-                  );
-                },
-              ),
-              const Divider(height: 1),
-              ListTile(
-                leading: Icon(Icons.logout, color: Colors.red[600]),
-                title: Text('로그아웃', style: TextStyle(color: Colors.red[600])),
-                subtitle: const Text('저장된 로그인 정보를 삭제합니다'),
-                onTap: () {
-                  _showLogoutDialog(context);
-                },
-              ),
-            ],
-          ),
+        const Divider(height: 1),
+        ListTile(
+          leading: Icon(Icons.logout, color: Colors.red[600]),
+          title: Text('로그아웃', style: TextStyle(color: Colors.red[600])),
+          subtitle: const Text('저장된 로그인 정보를 삭제합니다'),
+          onTap: () {
+            _showLogoutDialog(context);
+          },
         ),
-
-        const SizedBox(height: 24),
-
-        const Text(
-          '앱 정보',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        const Divider(height: 24),
+        ListTile(
+          leading: const Icon(Icons.info),
+          title: const Text('버전'),
+          subtitle: const Text('v0.1.0'),
         ),
-        const SizedBox(height: 8),
-
-        Card(
-          child: Column(
-            children: [
-              const ListTile(
-                leading: Icon(Icons.info),
-                title: Text('버전'),
-                subtitle: Text('v0.1.0'),
-              ),
-              const Divider(height: 1),
-              const ListTile(
-                leading: Icon(Icons.description),
-                title: Text('앱 정보'),
-                subtitle: Text('VRChat Mobile eXperience - 친구 관리 도구'),
-              ),
-            ],
-          ),
+        const Divider(height: 1),
+        ListTile(
+          leading: const Icon(Icons.description),
+          title: const Text('앱 정보'),
+          subtitle: const Text('VRChat Mobile eXperience - 친구 관리 도구'),
         ),
       ],
     );

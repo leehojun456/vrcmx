@@ -49,10 +49,6 @@ class _FriendsTabState extends State<FriendsTab> {
   // 상태 칩 자동 가시화용 키/스크롤 관리
   final Map<String, GlobalKey> _chipKeys = {};
 
-  // 탭으로 상태 전환 시에만 콘텐츠 슬라이드 애니메이션 적용
-  bool _animateNextStatusChange = false;
-  bool _slideFromRight = true; // 전환 방향
-
   // 상태 옵션 순서 정의
   final List<Map<String, String>> _statusOptions = [
     {'key': 'Online', 'label': 'Online'},
@@ -640,21 +636,10 @@ class _FriendsTabState extends State<FriendsTab> {
   void _onPageChanged(int index) {
     setState(() {
       _selectedStatus = _statusOptions[index]['key']!;
-      _currentPageIndex = index;
     });
     _filterFriends();
     // 선택된 상태 칩이 가려져 있다면 자동으로 보이도록 스크롤
     _scrollToSelectedStatusChip();
-
-    // 한 번 애니메이션 적용 후 해제 (탭으로 전환한 경우에만)
-    if (_animateNextStatusChange) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        setState(() {
-          _animateNextStatusChange = false;
-        });
-      });
-    }
   }
 
   // 상태 필터 버튼 클릭 시 페이지도 함께 변경
@@ -663,9 +648,6 @@ class _FriendsTabState extends State<FriendsTab> {
       (status) => status['key'] == statusKey,
     );
     if (index != -1) {
-      // 슬라이드 방향 기록 및 다음 전환만 애니메이션 적용
-      _slideFromRight = index > _currentPageIndex;
-      _animateNextStatusChange = true;
       // 페이지 컨트롤러는 즉시 대상 페이지로 점프 (중간 페이지 노출 방지)
       if (_pageController.hasClients) {
         _pageController.jumpToPage(index);
@@ -810,69 +792,52 @@ class _FriendsTabState extends State<FriendsTab> {
           ),
           // 상태 필터 버튼 + 정렬 아이콘
           _buildStatusFilterAndSort(),
-          // PageView + 탭 전환 시에만 슬라이드 애니메이션 적용
+          // PageView 추가: 상태별 친구 목록 표시 (Obx는 ListView.builder에만 적용)
           Expanded(
-            child: AnimatedSwitcher(
-              duration:
-                  _animateNextStatusChange ? const Duration(milliseconds: 180) : Duration.zero,
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeOutCubic,
-              transitionBuilder: (child, animation) {
-                if (!_animateNextStatusChange) return child;
-                final begin = _slideFromRight ? const Offset(0.05, 0) : const Offset(-0.05, 0);
-                return SlideTransition(
-                  position: Tween<Offset>(begin: begin, end: Offset.zero).animate(animation),
-                  child: child,
-                );
+            child: PageView.builder(
+              controller: _pageController,
+              itemCount: _statusOptions.length,
+              onPageChanged: _onPageChanged,
+              itemBuilder: (context, pageIndex) {
+                final statusKey = _statusOptions[pageIndex]['key']!;
+                final query = _searchController.text.toLowerCase();
+                // Obx는 friends 필터링 결과를 사용하는 ListView.builder에만 적용
+                return Obx(() {
+                  final filtered = c.friends.where((friend) {
+                    final matchesSearch =
+                        query.isEmpty ||
+                        friend.displayName.toLowerCase().contains(query) ||
+                        friend.id.toLowerCase().contains(query);
+                    final matchesStatus = _matchesStatusForKey(
+                      friend,
+                      statusKey,
+                    );
+                    return matchesSearch && matchesStatus;
+                  }).toList();
+                  // 정렬 방식에 따라 친구 목록 정렬
+                  filtered.sort((a, b) {
+                    if (_sortType == 'name') {
+                      final aOnline = a.status != 'offline';
+                      final bOnline = b.status != 'offline';
+                      if (aOnline != bOnline) return bOnline ? 1 : -1;
+                      return a.displayName.compareTo(b.displayName);
+                    }
+                    // 추후 확장 가능
+                    return 0;
+                  });
+                  if (filtered.isEmpty) {
+                    return const Center(child: Text('친구가 없습니다.'));
+                  }
+                  return ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, idx) {
+                      final friend = filtered[idx];
+                      final showDivider = idx != filtered.length - 1;
+                      return _buildFriendCard(friend, showDivider: showDivider);
+                    },
+                  );
+                });
               },
-              child: KeyedSubtree(
-                key: ValueKey<String>(_selectedStatus),
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: _statusOptions.length,
-                  onPageChanged: _onPageChanged,
-                  itemBuilder: (context, pageIndex) {
-                    final statusKey = _statusOptions[pageIndex]['key']!;
-                    final query = _searchController.text.toLowerCase();
-                    // Obx는 friends 필터링 결과를 사용하는 ListView.builder에만 적용
-                    return Obx(() {
-                      final filtered = c.friends.where((friend) {
-                        final matchesSearch =
-                            query.isEmpty ||
-                            friend.displayName.toLowerCase().contains(query) ||
-                            friend.id.toLowerCase().contains(query);
-                        final matchesStatus = _matchesStatusForKey(
-                          friend,
-                          statusKey,
-                        );
-                        return matchesSearch && matchesStatus;
-                      }).toList();
-                      // 정렬 방식에 따라 친구 목록 정렬
-                      filtered.sort((a, b) {
-                        if (_sortType == 'name') {
-                          final aOnline = a.status != 'offline';
-                          final bOnline = b.status != 'offline';
-                          if (aOnline != bOnline) return bOnline ? 1 : -1;
-                          return a.displayName.compareTo(b.displayName);
-                        }
-                        // 추후 확장 가능
-                        return 0;
-                      });
-                      if (filtered.isEmpty) {
-                        return const Center(child: Text('친구가 없습니다.'));
-                      }
-                      return ListView.builder(
-                        itemCount: filtered.length,
-                        itemBuilder: (context, idx) {
-                          final friend = filtered[idx];
-                          final showDivider = idx != filtered.length - 1;
-                          return _buildFriendCard(friend, showDivider: showDivider);
-                        },
-                      );
-                    });
-                  },
-                ),
-              ),
             ),
           ),
         ],

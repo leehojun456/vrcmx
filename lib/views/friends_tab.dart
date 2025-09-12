@@ -6,6 +6,25 @@ import 'package:get/get.dart';
 import '../controllers/friends_controller.dart';
 import '../widgets/vrchat_network_image.dart';
 
+// 해당 파일 내에서만 사용하는: 오버스크롤 효과(바운스/글로우) 제거
+class _NoGlowNoBounceBehavior extends ScrollBehavior {
+  const _NoGlowNoBounceBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    return child; // Glow/Bounce 인디케이터 표시 안 함
+  }
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const ClampingScrollPhysics(); // 끝에서 바운스 방지
+  }
+}
+
 class FriendsTab extends StatefulWidget {
   final AuthService authService;
 
@@ -27,6 +46,13 @@ class _FriendsTabState extends State<FriendsTab> {
   late PageController _pageController;
   int _currentPageIndex = 0;
 
+  // 상태 칩 자동 가시화용 키/스크롤 관리
+  final Map<String, GlobalKey> _chipKeys = {};
+
+  // 탭으로 상태 전환 시에만 콘텐츠 슬라이드 애니메이션 적용
+  bool _animateNextStatusChange = false;
+  bool _slideFromRight = true; // 전환 방향
+
   // 상태 옵션 순서 정의
   final List<Map<String, String>> _statusOptions = [
     {'key': 'Online', 'label': 'Online'},
@@ -39,6 +65,9 @@ class _FriendsTabState extends State<FriendsTab> {
   // 정렬 방식 상태 변수 추가
   String _sortType = 'name'; // 'name'만 지원, 추후 확장 가능
 
+  // 필터 칩 영역에서만 바운스/글로우 제거용 로컬 스크롤 비헤이비어
+  static const _noGlowNoBounceBehavior = _NoGlowNoBounceBehavior();
+
   @override
   void initState() {
     super.initState();
@@ -47,6 +76,12 @@ class _FriendsTabState extends State<FriendsTab> {
     // PageController 초기화
     _pageController = PageController(initialPage: 0);
     _currentPageIndex = 0;
+
+    // 상태 칩 키 초기화
+    for (final s in _statusOptions) {
+      final key = s['key']!;
+      _chipKeys[key] = GlobalKey();
+    }
   }
 
   @override
@@ -64,7 +99,9 @@ class _FriendsTabState extends State<FriendsTab> {
   }
 
   void _filterFriends() {
-    // 더 이상 필요 없음: Obx 내부에서 바로 필터링
+    // 검색어 변경 시 리스트를 즉시 갱신하기 위해 리빌드
+    if (!mounted) return;
+    setState(() {});
   }
 
   bool _matchesSelectedStatus(Friend friend) {
@@ -182,39 +219,44 @@ class _FriendsTabState extends State<FriendsTab> {
         children: [
           // 필터 버튼: 가로 스크롤
           Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: _statusOptions.map((status) {
-                  final isSelected = _selectedStatus == status['key'];
-                  return GestureDetector(
-                    onTap: () {
-                      _onStatusFilterTapped(status['key']!);
-                    },
-                    child: Container(
-                      margin: const EdgeInsets.only(right: 8),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: isSelected ? Colors.black : Colors.transparent,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.black, width: 1.5),
-                      ),
-                      child: Text(
-                        status['label']!,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.black,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                          fontSize: 12,
+            child: ScrollConfiguration(
+              behavior: _noGlowNoBounceBehavior,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                physics: const ClampingScrollPhysics(),
+                child: Row(
+                  children: _statusOptions.map((status) {
+                    final isSelected = _selectedStatus == status['key'];
+                    return GestureDetector(
+                      onTap: () {
+                        _onStatusFilterTapped(status['key']!);
+                      },
+                      child: Container(
+                        key: _chipKeys[status['key']!],
+                        margin: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected ? Colors.black : Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.black, width: 1.5),
+                        ),
+                        child: Text(
+                          status['label']!,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.black,
+                            fontWeight: isSelected
+                                ? FontWeight.bold
+                                : FontWeight.normal,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }).toList(),
+                    );
+                  }).toList(),
+                ),
               ),
             ),
           ),
@@ -598,8 +640,21 @@ class _FriendsTabState extends State<FriendsTab> {
   void _onPageChanged(int index) {
     setState(() {
       _selectedStatus = _statusOptions[index]['key']!;
+      _currentPageIndex = index;
     });
     _filterFriends();
+    // 선택된 상태 칩이 가려져 있다면 자동으로 보이도록 스크롤
+    _scrollToSelectedStatusChip();
+
+    // 한 번 애니메이션 적용 후 해제 (탭으로 전환한 경우에만)
+    if (_animateNextStatusChange) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        setState(() {
+          _animateNextStatusChange = false;
+        });
+      });
+    }
   }
 
   // 상태 필터 버튼 클릭 시 페이지도 함께 변경
@@ -608,12 +663,35 @@ class _FriendsTabState extends State<FriendsTab> {
       (status) => status['key'] == statusKey,
     );
     if (index != -1) {
-      _pageController.animateToPage(
-        index,
-        duration: const Duration(milliseconds: 180), // 더 빠른 슬라이드
-        curve: Curves.easeOutCubic, // 빠르고 부드러운 종료
+      // 슬라이드 방향 기록 및 다음 전환만 애니메이션 적용
+      _slideFromRight = index > _currentPageIndex;
+      _animateNextStatusChange = true;
+      // 페이지 컨트롤러는 즉시 대상 페이지로 점프 (중간 페이지 노출 방지)
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(index);
+      } else {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_pageController.hasClients) {
+            _pageController.jumpToPage(index);
+          }
+        });
+      }
+      // setState는 onPageChanged에서 처리됨
+    }
+  }
+
+  // 선택된 상태 칩이 화면 안으로 들어오도록 보정
+  void _scrollToSelectedStatusChip() {
+    final key = _chipKeys[_selectedStatus];
+    final ctx = key?.currentContext;
+    if (ctx != null) {
+      // 수평 스크롤뷰에서 해당 칩이 완전히 보이도록 애니메이션
+      Scrollable.ensureVisible(
+        ctx,
+        alignment: 0.5, // 중앙 근처로 위치
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
       );
-      // setState 제거: 버튼 상태는 onPageChanged에서만 변경
     }
   }
 
@@ -732,56 +810,69 @@ class _FriendsTabState extends State<FriendsTab> {
           ),
           // 상태 필터 버튼 + 정렬 아이콘
           _buildStatusFilterAndSort(),
-          // PageView 추가: 상태별 친구 목록 표시 (Obx는 ListView.builder에만 적용)
+          // PageView + 탭 전환 시에만 슬라이드 애니메이션 적용
           Expanded(
-            child: PageView.builder(
-              controller: _pageController,
-              itemCount: _statusOptions.length,
-              onPageChanged: (index) {
-                setState(() {
-                  _selectedStatus = _statusOptions[index]['key']!;
-                });
+            child: AnimatedSwitcher(
+              duration:
+                  _animateNextStatusChange ? const Duration(milliseconds: 180) : Duration.zero,
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              transitionBuilder: (child, animation) {
+                if (!_animateNextStatusChange) return child;
+                final begin = _slideFromRight ? const Offset(0.05, 0) : const Offset(-0.05, 0);
+                return SlideTransition(
+                  position: Tween<Offset>(begin: begin, end: Offset.zero).animate(animation),
+                  child: child,
+                );
               },
-              itemBuilder: (context, pageIndex) {
-                final statusKey = _statusOptions[pageIndex]['key']!;
-                final query = _searchController.text.toLowerCase();
-                // Obx는 friends 필터링 결과를 사용하는 ListView.builder에만 적용
-                return Obx(() {
-                  final filtered = c.friends.where((friend) {
-                    final matchesSearch =
-                        query.isEmpty ||
-                        friend.displayName.toLowerCase().contains(query) ||
-                        friend.id.toLowerCase().contains(query);
-                    final matchesStatus = _matchesStatusForKey(
-                      friend,
-                      statusKey,
-                    );
-                    return matchesSearch && matchesStatus;
-                  }).toList();
-                  // 정렬 방식에 따라 친구 목록 정렬
-                  filtered.sort((a, b) {
-                    if (_sortType == 'name') {
-                      final aOnline = a.status != 'offline';
-                      final bOnline = b.status != 'offline';
-                      if (aOnline != bOnline) return bOnline ? 1 : -1;
-                      return a.displayName.compareTo(b.displayName);
-                    }
-                    // 추후 확장 가능
-                    return 0;
-                  });
-                  if (filtered.isEmpty) {
-                    return const Center(child: Text('친구가 없습니다.'));
-                  }
-                  return ListView.builder(
-                    itemCount: filtered.length,
-                    itemBuilder: (context, idx) {
-                      final friend = filtered[idx];
-                      final showDivider = idx != filtered.length - 1;
-                      return _buildFriendCard(friend, showDivider: showDivider);
-                    },
-                  );
-                });
-              },
+              child: KeyedSubtree(
+                key: ValueKey<String>(_selectedStatus),
+                child: PageView.builder(
+                  controller: _pageController,
+                  itemCount: _statusOptions.length,
+                  onPageChanged: _onPageChanged,
+                  itemBuilder: (context, pageIndex) {
+                    final statusKey = _statusOptions[pageIndex]['key']!;
+                    final query = _searchController.text.toLowerCase();
+                    // Obx는 friends 필터링 결과를 사용하는 ListView.builder에만 적용
+                    return Obx(() {
+                      final filtered = c.friends.where((friend) {
+                        final matchesSearch =
+                            query.isEmpty ||
+                            friend.displayName.toLowerCase().contains(query) ||
+                            friend.id.toLowerCase().contains(query);
+                        final matchesStatus = _matchesStatusForKey(
+                          friend,
+                          statusKey,
+                        );
+                        return matchesSearch && matchesStatus;
+                      }).toList();
+                      // 정렬 방식에 따라 친구 목록 정렬
+                      filtered.sort((a, b) {
+                        if (_sortType == 'name') {
+                          final aOnline = a.status != 'offline';
+                          final bOnline = b.status != 'offline';
+                          if (aOnline != bOnline) return bOnline ? 1 : -1;
+                          return a.displayName.compareTo(b.displayName);
+                        }
+                        // 추후 확장 가능
+                        return 0;
+                      });
+                      if (filtered.isEmpty) {
+                        return const Center(child: Text('친구가 없습니다.'));
+                      }
+                      return ListView.builder(
+                        itemCount: filtered.length,
+                        itemBuilder: (context, idx) {
+                          final friend = filtered[idx];
+                          final showDivider = idx != filtered.length - 1;
+                          return _buildFriendCard(friend, showDivider: showDivider);
+                        },
+                      );
+                    });
+                  },
+                ),
+              ),
             ),
           ),
         ],

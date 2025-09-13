@@ -55,12 +55,12 @@ class VRChatCircleAvatar extends StatelessWidget {
   final Widget? child;
 
   const VRChatCircleAvatar({
-    Key? key,
+    super.key,
     required this.id,
     this.imageUrl,
     this.radius = 25,
     this.child,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -82,37 +82,6 @@ class VRChatCircleAvatar extends StatelessWidget {
     // 디스크 캐시 우선 사용 (비동기)
     return FutureBuilder<Uint8List?>(
       future: _loadImageWithDiskCache(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return CircleAvatar(
-            radius: radius,
-            child: const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          );
-        } else if (snapshot.hasData && snapshot.data != null) {
-          return CircleAvatar(
-            radius: radius,
-            backgroundImage: MemoryImage(snapshot.data!),
-          );
-        } else {
-          // 에러 발생 시 기본 NetworkImage로 폴백
-          return CircleAvatar(
-            radius: radius,
-            backgroundImage: NetworkImage(imageUrl!),
-            onBackgroundImageError: (exception, stackTrace) {
-              print('이미지 로드 실패: $exception');
-            },
-            child: null,
-          );
-        }
-      },
-    );
-
-    return FutureBuilder<Uint8List?>(
-      future: _loadImageWithCustomHeaders(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return CircleAvatar(

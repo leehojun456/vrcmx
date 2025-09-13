@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class PushService {
@@ -14,11 +12,11 @@ class PushService {
 
   static const AndroidNotificationChannel _defaultChannel =
       AndroidNotificationChannel(
-    'vrcmx_default',
-    'VRCMX Notifications',
-    description: 'Default channel for VRCMX notifications',
-    importance: Importance.high,
-  );
+        'vrcmx_default',
+        'VRCMX Notifications',
+        description: 'Default channel for VRCMX notifications',
+        importance: Importance.high,
+      );
 
   Future<void> init() async {
     // 로컬 알림 초기화
@@ -32,9 +30,10 @@ class PushService {
 
     // Android 채널 생성
     if (Platform.isAndroid) {
-      final androidPlugin =
-          _fln.resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin = _fln
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       await androidPlugin?.createNotificationChannel(_defaultChannel);
     }
   }

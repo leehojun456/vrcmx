@@ -5,6 +5,7 @@ import '../services/auth_service.dart';
 import 'package:get/get.dart';
 import '../controllers/friends_controller.dart';
 import '../widgets/vrchat_network_image.dart';
+import '../services/world_service.dart';
 
 // 해당 파일 내에서만 사용하는: 오버스크롤 효과(바운스/글로우) 제거
 class _NoGlowNoBounceBehavior extends ScrollBehavior {
@@ -36,15 +37,17 @@ class FriendsTab extends StatefulWidget {
 
 class _FriendsTabState extends State<FriendsTab> {
   final FriendsController c = Get.find<FriendsController>();
+  late WorldService _worldService;
 
-  String _errorMessage = '';
   final TextEditingController _searchController = TextEditingController();
   String _selectedStatus = 'Online'; // Online, Active, Ask Me, Offline
   final Map<String, String> _worldNameCache = {}; // worldId -> worldName 캐시
 
+  // Future 캐싱을 위한 변수들
+  final Map<String, Future<Map<String, dynamic>>> _locationFutureCache = {};
+
   // PageView 컨트롤러 추가
   late PageController _pageController;
-  int _currentPageIndex = 0;
 
   // 상태 칩 자동 가시화용 키/스크롤 관리
   final Map<String, GlobalKey> _chipKeys = {};
@@ -69,15 +72,30 @@ class _FriendsTabState extends State<FriendsTab> {
     super.initState();
     _searchController.addListener(_filterFriends);
 
+    // WorldService 초기화
+    final authCookie = widget.authService.authCookie ?? '';
+    print(
+      '🍪 Auth Cookie: ${authCookie.isNotEmpty ? "Present (${authCookie.length} chars)" : "Missing"}',
+    );
+
+    _worldService = WorldService(
+      baseUrl: 'https://api.vrchat.cloud/api/1',
+      authCookie: authCookie,
+    );
+
     // PageController 초기화
     _pageController = PageController(initialPage: 0);
-    _currentPageIndex = 0;
 
     // 상태 칩 키 초기화
     for (final s in _statusOptions) {
       final key = s['key']!;
       _chipKeys[key] = GlobalKey();
     }
+
+    // 초기 월드 이름 로드
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _preloadWorldNames();
+    });
   }
 
   @override
@@ -95,53 +113,65 @@ class _FriendsTabState extends State<FriendsTab> {
       return;
     }
 
-    setState(() {
-      _errorMessage = '';
-    });
+    setState(() {});
+
+    // 인스턴스 정보 캐시 초기화
+    _locationFutureCache.clear();
+    print('인스턴스 정보 캐시 초기화됨');
+
     print('새로고침 버튼으로 친구 목록 새로고침 실행');
     await c.refreshFriends();
+
+    // 친구 목록 로드 후 월드 이름들을 백그라운드에서 캐시
+    _preloadWorldNames();
+  }
+
+  /// 친구들의 월드 이름을 백그라운드에서 미리 로드
+  void _preloadWorldNames() {
+    final uniqueWorldIds = <String>{};
+
+    // 모든 친구의 위치에서 월드 ID 추출
+    for (final friend in c.friends) {
+      final location = friend.location;
+      if (location != null && location.startsWith('wrld_')) {
+        String worldId;
+        if (location.contains(':')) {
+          worldId = location.split(':')[0];
+        } else {
+          worldId = location;
+        }
+        uniqueWorldIds.add(worldId);
+      }
+    }
+
+    // 아직 캐시되지 않은 월드들만 로드
+    for (final worldId in uniqueWorldIds) {
+      if (!_worldNameCache.containsKey(worldId)) {
+        _loadWorldNameInBackground(worldId);
+      }
+    }
+  }
+
+  /// 백그라운드에서 월드 이름 로드
+  void _loadWorldNameInBackground(String worldId) {
+    _worldService
+        .getLocationDisplayText(worldId)
+        .then((worldName) {
+          if (mounted) {
+            setState(() {
+              _worldNameCache[worldId] = worldName;
+            });
+          }
+        })
+        .catchError((error) {
+          print('월드 이름 로드 실패: $worldId - $error');
+        });
   }
 
   void _filterFriends() {
     // 검색어 변경 시 리스트를 즉시 갱신하기 위해 리빌드
     if (!mounted) return;
     setState(() {});
-  }
-
-  bool _matchesSelectedStatus(Friend friend) {
-    final status = friend.status;
-    final location = friend.location;
-
-    if (status == null) return _selectedStatus == 'Offline';
-
-    // location이 wrld_로 시작하거나 private인지 확인 (실제 월드에 있는지)
-    final isInWorld =
-        location != null &&
-        (location.startsWith('wrld_') || location == 'private');
-
-    switch (_selectedStatus) {
-      case 'Online':
-        // 월드에 있으면서 active 또는 join me
-        return isInWorld &&
-            (status.toLowerCase() == 'active' ||
-                status.toLowerCase() == 'join me');
-      case 'Active':
-        // offline을 제외한 모든 상태이면서 location이 offline이거나 월드 정보가 없는 경우
-        return status.toLowerCase() != 'offline' &&
-            (location == 'offline' ||
-                location == null ||
-                (!location.startsWith('wrld_') && location != 'private'));
-      case 'Ask Me':
-        // 월드에 있으면서 ask me
-        return isInWorld && status.toLowerCase() == 'ask me';
-      case 'Busy':
-        // 월드에 있으면서 busy
-        return isInWorld && status.toLowerCase() == 'busy';
-      case 'Offline':
-        return status.toLowerCase() == 'offline';
-      default:
-        return true;
-    }
   }
 
   // 특정 statusKey에 대해 친구가 매칭되는지 확인하는 함수
@@ -179,40 +209,6 @@ class _FriendsTabState extends State<FriendsTab> {
       default:
         return true;
     }
-  }
-
-  Widget _buildStatusFilterButtons() {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 4,
-        children: _statusOptions.map((status) {
-          final isSelected = _selectedStatus == status['key'];
-          return GestureDetector(
-            onTap: () {
-              _onStatusFilterTapped(status['key']!);
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: isSelected ? Colors.black : Colors.transparent,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.black, width: 1.5),
-              ),
-              child: Text(
-                status['label']!,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : Colors.black,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
   }
 
   Widget _buildStatusFilterAndSort() {
@@ -277,6 +273,8 @@ class _FriendsTabState extends State<FriendsTab> {
               ),
               items: const [
                 DropdownMenuItem(value: 'name', child: Text('이름순')),
+                DropdownMenuItem(value: 'location', child: Text('위치순')),
+                DropdownMenuItem(value: 'status', child: Text('상태순')),
               ],
               onChanged: (value) {
                 if (value != null) {
@@ -413,7 +411,62 @@ class _FriendsTabState extends State<FriendsTab> {
     final location = friend.location;
     if (location == null || location.isEmpty) return '';
 
-    // 월드 정보 API 호출 비활성화 - 원본 location 그대로 표시
+    // 위치 정보를 읽기 쉬운 형태로 변환
+    return _getReadableLocationText(location);
+  }
+
+  /// 위치 정보를 읽기 쉬운 형태로 변환
+  String _getReadableLocationText(String location) {
+    if (location.isEmpty || location == 'offline') {
+      return 'Offline';
+    }
+    if (location == 'private') {
+      return 'Private';
+    }
+
+    // 월드 ID 형태라면 좀 더 읽기 쉽게 변환
+    if (location.startsWith('wrld_')) {
+      // 인스턴스 정보가 있는 경우 (wrld_xxx:12345~xxx)
+      if (location.contains(':')) {
+        final parts = location.split(':');
+        final worldId = parts[0];
+        final instanceInfo = parts.length > 1 ? parts[1] : '';
+
+        // 인스턴스 타입 추출 (예: 12345~hidden(usr_xxx) -> hidden)
+        String instanceType = '';
+        if (instanceInfo.contains('~')) {
+          final instanceParts = instanceInfo.split('~');
+          if (instanceParts.length > 1) {
+            final typeInfo = instanceParts[1];
+            if (typeInfo.contains('(')) {
+              instanceType = typeInfo.split('(')[0];
+            } else {
+              instanceType = typeInfo;
+            }
+          }
+        }
+
+        // 월드 이름이 캐시되어 있으면 사용
+        if (_worldNameCache.containsKey(worldId)) {
+          final worldName = _worldNameCache[worldId]!;
+          return instanceType.isNotEmpty
+              ? '$worldName ($instanceType)'
+              : worldName;
+        }
+
+        // 캐시가 없으면 월드 ID와 인스턴스 타입 표시
+        return instanceType.isNotEmpty ? '$worldId ($instanceType)' : worldId;
+      }
+
+      // 월드 이름이 캐시되어 있으면 사용
+      if (_worldNameCache.containsKey(location)) {
+        return _worldNameCache[location]!;
+      }
+
+      // 월드 ID만 있는 경우
+      return location;
+    }
+
     return location;
   }
 
@@ -878,20 +931,112 @@ class _FriendsTabState extends State<FriendsTab> {
                       final bOnline = b.status != 'offline';
                       if (aOnline != bOnline) return bOnline ? 1 : -1;
                       return a.displayName.compareTo(b.displayName);
+                    } else if (_sortType == 'location') {
+                      final aLocation = a.location ?? 'offline';
+                      final bLocation = b.location ?? 'offline';
+                      final locationCompare = aLocation.compareTo(bLocation);
+                      if (locationCompare != 0) return locationCompare;
+                      return a.displayName.compareTo(b.displayName);
+                    } else if (_sortType == 'status') {
+                      final aStatus = a.status ?? 'offline';
+                      final bStatus = b.status ?? 'offline';
+                      final statusOrder = [
+                        'active',
+                        'join me',
+                        'ask me',
+                        'busy',
+                        'offline',
+                      ];
+                      final aIndex = statusOrder.indexOf(aStatus.toLowerCase());
+                      final bIndex = statusOrder.indexOf(bStatus.toLowerCase());
+                      final aOrder = aIndex == -1 ? statusOrder.length : aIndex;
+                      final bOrder = bIndex == -1 ? statusOrder.length : bIndex;
+                      if (aOrder != bOrder) return aOrder.compareTo(bOrder);
+                      return a.displayName.compareTo(b.displayName);
                     }
-                    // 추후 확장 가능
                     return 0;
                   });
                   if (filtered.isEmpty) {
                     return const Center(child: Text('친구가 없습니다.'));
                   }
-                  return ListView.builder(
-                    itemCount: filtered.length,
-                    itemBuilder: (context, idx) {
-                      final friend = filtered[idx];
-                      return _buildFriendCard(friend);
-                    },
-                  );
+
+                  // 위치순 정렬일 때만 위치별로 그룹화하여 헤더 표시
+                  if (_sortType == 'location') {
+                    // 위치별로 그룹화
+                    final locationGroups = <String, List<Friend>>{};
+                    for (final friend in filtered) {
+                      final location = friend.location ?? 'offline';
+                      locationGroups
+                          .putIfAbsent(location, () => [])
+                          .add(friend);
+                    }
+
+                    // 각 위치 그룹 내의 친구들 정렬 (이름순)
+                    for (final entry in locationGroups.entries) {
+                      entry.value.sort(
+                        (a, b) => a.displayName.compareTo(b.displayName),
+                      );
+                    }
+
+                    final locationEntries = locationGroups.entries.toList();
+
+                    // 위치 그룹들 자체도 정렬
+                    locationEntries.sort((a, b) {
+                      final aLocation = a.key;
+                      final bLocation = b.key;
+
+                      // offline을 맨 마지막으로
+                      if (aLocation == 'offline' && bLocation != 'offline')
+                        return 1;
+                      if (bLocation == 'offline' && aLocation != 'offline')
+                        return -1;
+
+                      // private를 offline 바로 앞으로
+                      if (aLocation == 'private' &&
+                          bLocation != 'private' &&
+                          bLocation != 'offline')
+                        return 1;
+                      if (bLocation == 'private' &&
+                          aLocation != 'private' &&
+                          aLocation != 'offline')
+                        return -1;
+
+                      return aLocation.compareTo(bLocation);
+                    });
+
+                    return ListView.builder(
+                      itemCount: locationEntries.length,
+                      itemBuilder: (context, groupIndex) {
+                        final entry = locationEntries[groupIndex];
+                        final location = entry.key;
+                        final friendsInLocation = entry.value;
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // 위치 헤더
+                            _buildLocationHeader(
+                              location,
+                              friendsInLocation.length,
+                            ),
+                            // 해당 위치의 친구들
+                            ...friendsInLocation.map(
+                              (friend) => _buildFriendCard(friend),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  } else {
+                    // 이름순, 상태순일 때는 일반 리스트 (헤더 없음)
+                    return ListView.builder(
+                      itemCount: filtered.length,
+                      itemBuilder: (context, idx) {
+                        final friend = filtered[idx];
+                        return _buildFriendCard(friend);
+                      },
+                    );
+                  }
                 });
               },
             ),
@@ -899,5 +1044,236 @@ class _FriendsTabState extends State<FriendsTab> {
         ],
       ),
     );
+  }
+
+  /// 위치 헤더 위젯 생성 (위치 정보와 인스턴스 정보 표시)
+  Widget _buildLocationHeader(String location, int friendCount) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      decoration: const BoxDecoration(
+        color: Color(0xFFF8F9FA),
+        border: Border(
+          bottom: BorderSide(color: Color(0xFFE1E4E8), width: 0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 위치 정보와 인스턴스 정보를 캐시된 Future로 로드
+          FutureBuilder<Map<String, dynamic>>(
+            future: _getCachedLocationInfo(location),
+            builder: (context, snapshot) {
+              final data = snapshot.data;
+              final worldName =
+                  data?['worldName'] ?? _getSimpleLocationText(location);
+              final instanceType = data?['instanceType'] ?? '';
+              final totalUsers = data?['totalUsers'] ?? 0;
+              final instanceFriendCount = data?['friendCount'] ?? 0;
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 월드 이름
+                  Text(
+                    worldName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1a1a1a),
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  // 인스턴스 정보와 인원수
+                  Row(
+                    children: [
+                      if (instanceType.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _getInstanceTypeColor(instanceType),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            instanceType,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF4A9EFF).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          totalUsers > 0
+                              ? '($totalUsers/${instanceFriendCount})'
+                              : '$friendCount명',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF4A9EFF),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 인스턴스 타입별 색상
+  Color _getInstanceTypeColor(String instanceType) {
+    print(instanceType);
+    switch (instanceType.toLowerCase()) {
+      case 'public':
+        return const Color(0xFF10B981); // 초록색
+      case 'friends+':
+      case 'hidden':
+        return const Color(0xFFF59E0B); // 주황색
+      case 'friends':
+        return const Color(0xFF3B82F6); // 파란색
+      case 'private':
+      case 'invite only':
+        return const Color(0xFFEF4444); // 빨간색
+      case 'group':
+      case 'group+':
+      case 'grouppublic':
+        return const Color(0xFF8B5CF6); // 보라색
+      default:
+        return const Color(0xFF6B7280); // 회색
+    }
+  }
+
+  /// 캐시된 Future를 반환하여 중복 API 호출 방지
+  Future<Map<String, dynamic>> _getCachedLocationInfo(String location) {
+    // 이미 캐시된 Future가 있으면 재사용
+    if (_locationFutureCache.containsKey(location)) {
+      return _locationFutureCache[location]!;
+    }
+
+    // 새로운 Future 생성하고 캐시에 저장
+    final future = _getLocationAndInstanceInfo(location);
+    _locationFutureCache[location] = future;
+    return future;
+  }
+
+  /// 위치와 인스턴스 정보를 함께 가져오는 메서드
+  Future<Map<String, dynamic>> _getLocationAndInstanceInfo(
+    String location,
+  ) async {
+    if (location.isEmpty || location == 'offline' || location == 'private') {
+      return {
+        'worldName': _getSimpleLocationText(location),
+        'instanceType': '',
+        'totalUsers': 0,
+        'friendCount': 0,
+      };
+    }
+
+    try {
+      // 월드 ID와 인스턴스가 포함된 경우 - 인스턴스 정보만 가져오기
+      if (location.startsWith('wrld_') && location.contains(':')) {
+        print('🔍 Fetching instance info for: $location');
+
+        try {
+          final instance = await _worldService.getInstance(location);
+          print('✅ Instance API call successful');
+
+          // 인스턴스 정보에서 월드 이름과 기타 정보 추출
+          final worldName =
+              instance?.worldName ?? _getSimpleLocationText(location);
+          final instanceType = instance?.displayType ?? '';
+          final totalUsers = instance?.nUsers ?? 0;
+          final friendCount = instance?.friendCount ?? 0;
+
+          print('✅ Location: $location');
+          print('📍 World: $worldName');
+          print('🏷️ Instance Type: $instanceType (raw: ${instance?.type})');
+          print('👥 Users: $totalUsers');
+          print('👫 Friends: $friendCount');
+          print('---');
+
+          return {
+            'worldName': worldName,
+            'instanceType': instanceType,
+            'totalUsers': totalUsers,
+            'friendCount': friendCount,
+          };
+        } catch (instanceError) {
+          print('❌ Instance API call failed: $instanceError');
+
+          // 인스턴스 정보 조회 실패 시 기본값 반환
+          return {
+            'worldName': _getSimpleLocationText(location),
+            'instanceType': '',
+            'totalUsers': 0,
+          };
+        }
+      }
+      // 캐시된 정보가 있으면 사용 (인스턴스가 아닌 경우)
+      else if (_worldNameCache.containsKey(location)) {
+        final cachedInfo = _worldNameCache[location]!;
+        return {'worldName': cachedInfo, 'instanceType': '', 'totalUsers': 0};
+      }
+      // 새로 로드
+      else {
+        final displayText = await _worldService.getLocationDisplayText(
+          location,
+        );
+        _worldNameCache[location] = displayText;
+
+        return {'worldName': displayText, 'instanceType': '', 'totalUsers': 0};
+      }
+    } catch (e) {
+      print('Error loading location info for "$location": $e');
+      print('Stack trace: ${StackTrace.current}');
+      return {
+        'worldName': _getSimpleLocationText(location),
+        'instanceType': '',
+        'totalUsers': 0,
+      };
+    }
+  }
+
+  /// 간단한 위치 텍스트 변환
+  String _getSimpleLocationText(String location) {
+    if (location.isEmpty || location == 'offline') {
+      return 'Offline';
+    }
+    if (location == 'private') {
+      return 'Private';
+    }
+
+    // 월드 ID 형태라면 좀 더 읽기 쉽게 변환
+    if (location.startsWith('wrld_')) {
+      // 인스턴스 정보가 있는 경우 (wrld_xxx:12345~xxx)
+      if (location.contains(':')) {
+        final worldId = location.split(':')[0];
+        return 'World ($worldId)';
+      }
+      // 월드 ID만 있는 경우
+      return 'World ($location)';
+    }
+
+    return location;
   }
 }

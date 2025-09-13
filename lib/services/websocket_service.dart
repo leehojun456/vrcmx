@@ -4,10 +4,8 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math';
 import 'package:get/get.dart';
-import 'package:get/get_core/src/get_main.dart';
 
 import '../controllers/friends_controller.dart';
-import '../models/friend.dart';
 // import '../models/notification.dart';
 import 'auth_service.dart';
 import 'package:vrcmx/constants/app_info.dart';
@@ -30,9 +28,6 @@ class WebSocketService {
   final Duration _reconnectBaseDelay = const Duration(seconds: 2);
   final Duration _reconnectMaxDelay = const Duration(minutes: 1);
   // bool _manuallyClosed = false; // 수동 연결 해제 상태 제거
-
-  // 현재 친구 목록 캐시
-  List<Friend> _currentFriends = [];
 
   WebSocketService(this._authService);
 

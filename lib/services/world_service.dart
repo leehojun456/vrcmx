@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/instance.dart';
 
 class WorldService {
   final String baseUrl;
   final String authCookie;
+  static const String _cachePrefix = 'instance_cache_';
 
   WorldService({required this.baseUrl, required this.authCookie});
 
@@ -25,6 +27,13 @@ class WorldService {
         return null;
       }
 
+      // 먼저 캐시에서 확인
+      final cachedInstance = await _getInstanceFromCache(instanceId, location);
+      if (cachedInstance != null) {
+        print('📦 Using cached instance data for: $instanceId');
+        return cachedInstance;
+      }
+
       final url = '$baseUrl/instances/$instanceId';
       print('🌐 API Call: GET $url');
       print('🔄 Original location: $location');
@@ -40,7 +49,19 @@ class WorldService {
       if (response.statusCode == 200) {
         final Map<String, dynamic> data = json.decode(response.body);
         print('✅ Instance data received');
-        return Instance.fromJson(data);
+        print('📋 Raw JSON data:');
+        print(json.encode(data));
+        print('---');
+
+        // Instance 객체 생성시 원본 location 정보도 포함
+        data['originalLocation'] = location;
+        final instance = Instance.fromJson(data);
+
+        // 캐시에 저장
+        await _saveInstanceToCache(instanceId, data);
+        print('💾 Instance data saved to cache: $instanceId');
+
+        return instance;
       } else {
         print('❌ Failed to get instance: ${response.statusCode}');
         print('❌ Response body: ${response.body}');
@@ -115,5 +136,55 @@ class WorldService {
 
     // ~ 문자가 없으면 전체 문자열 사용
     return location;
+  }
+
+  /// 캐시에서 인스턴스 정보를 가져옵니다
+  Future<Instance?> _getInstanceFromCache(
+    String instanceId,
+    String originalLocation,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = '$_cachePrefix$instanceId';
+      final cachedData = prefs.getString(cacheKey);
+
+      if (cachedData != null) {
+        final Map<String, dynamic> data = json.decode(cachedData);
+        // 현재 요청의 originalLocation으로 업데이트
+        data['originalLocation'] = originalLocation;
+        return Instance.fromJson(data);
+      }
+    } catch (e) {
+      print('Error reading instance cache: $e');
+    }
+    return null;
+  }
+
+  /// 캐시에 인스턴스 정보를 저장합니다
+  Future<void> _saveInstanceToCache(
+    String instanceId,
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final cacheKey = '$_cachePrefix$instanceId';
+      await prefs.setString(cacheKey, json.encode(data));
+    } catch (e) {
+      print('Error saving instance cache: $e');
+    }
+  }
+
+  /// 모든 인스턴스 캐시를 삭제합니다 (필요시 사용)
+  Future<void> clearInstanceCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final keys = prefs.getKeys().where((key) => key.startsWith(_cachePrefix));
+      for (final key in keys) {
+        await prefs.remove(key);
+      }
+      print('🗑️ All instance cache cleared');
+    } catch (e) {
+      print('Error clearing instance cache: $e');
+    }
   }
 }

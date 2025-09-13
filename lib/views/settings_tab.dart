@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import '../models/auth_state.dart';
 import '../controllers/auth_controller.dart';
-import '../models/auth_state.dart';
 import 'api_response_view.dart';
 import 'login_page.dart';
 

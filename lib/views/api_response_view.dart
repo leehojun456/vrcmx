@@ -13,8 +13,6 @@ class ApiResponseView extends StatefulWidget {
 }
 
 class _ApiResponseViewState extends State<ApiResponseView> {
-  bool _isExpanded = false;
-
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
@@ -34,33 +32,6 @@ class _ApiResponseViewState extends State<ApiResponseView> {
     } catch (e) {
       return json.toString();
     }
-  }
-
-  Widget _buildInfoRow(String label, String? value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: Text(
-              '$label:',
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.grey,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value ?? 'N/A',
-              style: const TextStyle(fontFamily: 'monospace'),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -87,18 +58,5 @@ class _ApiResponseViewState extends State<ApiResponseView> {
         ),
       ),
     );
-  }
-
-  Color _getStatusColor(String? status) {
-    switch (status?.toLowerCase()) {
-      case 'online':
-        return Colors.green;
-      case 'busy':
-        return Colors.orange;
-      case 'offline':
-        return Colors.grey;
-      default:
-        return Colors.blue;
-    }
   }
 }

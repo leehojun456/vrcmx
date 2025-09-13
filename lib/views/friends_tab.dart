@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/friend.dart';
 import '../services/auth_service.dart';
 import 'package:get/get.dart';
 import '../controllers/friends_controller.dart';
 import '../widgets/vrchat_network_image.dart';
+import '../widgets/user_status_indicator.dart';
 import '../services/world_service.dart';
 
 // 해당 파일 내에서만 사용하는: 오버스크롤 효과(바운스/글로우) 제거
@@ -72,6 +74,9 @@ class _FriendsTabState extends State<FriendsTab> {
     super.initState();
     _searchController.addListener(_filterFriends);
 
+    // 저장된 정렬 방식 로드
+    _loadSortPreference();
+
     // WorldService 초기화
     final authCookie = widget.authService.authCookie ?? '';
     print(
@@ -114,10 +119,6 @@ class _FriendsTabState extends State<FriendsTab> {
     }
 
     setState(() {});
-
-    // 인스턴스 정보 캐시 초기화
-    _locationFutureCache.clear();
-    print('인스턴스 정보 캐시 초기화됨');
 
     print('새로고침 버튼으로 친구 목록 새로고침 실행');
     await c.refreshFriends();
@@ -166,6 +167,36 @@ class _FriendsTabState extends State<FriendsTab> {
         .catchError((error) {
           print('월드 이름 로드 실패: $worldId - $error');
         });
+  }
+
+  /// SharedPreferences에서 저장된 정렬 방식을 로드합니다
+  Future<void> _loadSortPreference() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedSortType = prefs.getString('friends_sort_type') ?? 'name';
+
+      // 유효한 정렬 타입인지 확인
+      const validSortTypes = ['name', 'location', 'status'];
+      if (validSortTypes.contains(savedSortType)) {
+        setState(() {
+          _sortType = savedSortType;
+        });
+        print('🔄 정렬 방식 로드됨: $_sortType');
+      }
+    } catch (e) {
+      print('❌ 정렬 방식 로드 실패: $e');
+    }
+  }
+
+  /// SharedPreferences에 정렬 방식을 저장합니다
+  Future<void> _saveSortPreference(String sortType) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('friends_sort_type', sortType);
+      print('💾 정렬 방식 저장됨: $sortType');
+    } catch (e) {
+      print('❌ 정렬 방식 저장 실패: $e');
+    }
   }
 
   void _filterFriends() {
@@ -262,121 +293,200 @@ class _FriendsTabState extends State<FriendsTab> {
           ),
           // 정렬 아이콘 및 드롭다운
           SizedBox(width: 12),
-          DropdownButtonHideUnderline(
-            child: DropdownButton<String>(
-              value: _sortType,
-              icon: const Icon(Icons.sort, color: Colors.black),
+          _buildSortDropdown(),
+        ],
+      ),
+    );
+  }
+
+  /// 커스텀 정렬 드롭다운 버튼
+  Widget _buildSortDropdown() {
+    final sortOptions = [
+      {'value': 'name', 'label': '이름순'},
+      {'value': 'location', 'label': '위치순'},
+      {'value': 'status', 'label': '상태순'},
+    ];
+
+    final currentOption = sortOptions.firstWhere(
+      (option) => option['value'] == _sortType,
+      orElse: () => sortOptions.first,
+    );
+
+    return PopupMenuButton<String>(
+      onSelected: (value) {
+        setState(() {
+          _sortType = value;
+        });
+        // 선택된 정렬 방식을 저장
+        _saveSortPreference(value);
+      },
+      offset: const Offset(0, 40), // 버튼 아래쪽에 나타나도록
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 8,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!, width: 1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.sort, color: Colors.black, size: 18),
+            const SizedBox(width: 4),
+            Text(
+              currentOption['label']!,
               style: const TextStyle(
                 color: Colors.black,
                 fontWeight: FontWeight.w500,
                 fontSize: 13,
               ),
-              items: const [
-                DropdownMenuItem(value: 'name', child: Text('이름순')),
-                DropdownMenuItem(value: 'location', child: Text('위치순')),
-                DropdownMenuItem(value: 'status', child: Text('상태순')),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.keyboard_arrow_down, color: Colors.grey[600], size: 16),
+          ],
+        ),
+      ),
+      itemBuilder: (context) => sortOptions.map((option) {
+        final isSelected = option['value'] == _sortType;
+        return PopupMenuItem<String>(
+          value: option['value'],
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Icon(
+                  isSelected ? Icons.check : Icons.sort,
+                  size: 16,
+                  color: isSelected ? Colors.blue : Colors.grey[600],
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  option['label']!,
+                  style: TextStyle(
+                    color: isSelected ? Colors.blue : Colors.black,
+                    fontWeight: isSelected
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                    fontSize: 14,
+                  ),
+                ),
               ],
-              onChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _sortType = value;
-                  });
-                }
-              },
             ),
           ),
-        ],
-      ),
+        );
+      }).toList(),
     );
   }
 
   Widget _buildFriendCard(Friend friend) {
     return Container(
       decoration: const BoxDecoration(color: Colors.white),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: Stack(
-          children: [
-            VRChatCircleAvatar(
-              id: friend.id,
-              radius: 25,
-              imageUrl: friend.currentAvatarThumbnailImageUrl,
-              child: const Icon(Icons.person),
-            ),
-            // 온라인 상태 표시
-            Positioned(
-              bottom: 0,
-              right: 0,
-              child: Container(
-                width: 16,
-                height: 16,
-                decoration: BoxDecoration(
-                  color: _getStatusColor(friend.status, friend.location),
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white, width: 2),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {
+            _showFriendDetails(friend);
+          },
+          onLongPress: () {
+            _showFriendActionMenu(friend);
+          },
+          splashColor: Colors.blue.withOpacity(0.1),
+          highlightColor: Colors.blue.withOpacity(0.05),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                // Leading - 아바타와 상태 표시
+                AvatarWithStatus(
+                  avatar: VRChatCircleAvatar(
+                    id: friend.id,
+                    radius: 25,
+                    imageUrl: friend.currentAvatarThumbnailImageUrl,
+                    child: const Icon(Icons.person),
+                  ),
+                  avatarRadius: 25,
+                  status: friend.status,
+                  location: friend.location,
                 ),
-              ),
+                const SizedBox(width: 16),
+                // Title and Subtitle
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        friend.displayName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: _getTrustColor(friend.tags), // 닉네임 색상 적용
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      FutureBuilder<Map<String, dynamic>>(
+                        future: _getCachedLocationInfo(friend.location ?? ''),
+                        builder: (context, snapshot) {
+                          String locationText;
+                          if (snapshot.hasData) {
+                            final data = snapshot.data!;
+                            final worldName = data['worldName'] ?? '';
+                            final instanceType = data['instanceType'] ?? '';
+
+                            if (instanceType.isNotEmpty &&
+                                worldName.isNotEmpty) {
+                              locationText = '$worldName ($instanceType)';
+                            } else {
+                              locationText = worldName.isNotEmpty
+                                  ? worldName
+                                  : _getLocationText(friend);
+                            }
+                          } else {
+                            // 로딩 중이거나 실패한 경우 기본 텍스트 사용
+                            locationText = _getLocationText(friend);
+                          }
+
+                          return Text(
+                            locationText,
+                            style: const TextStyle(
+                              color: Colors.black54,
+                              fontSize: 12,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                // Trailing - 플랫폼과 상태
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (friend.lastPlatform != null)
+                      Icon(
+                        _getPlatformIcon(friend.lastPlatform!),
+                        size: 16,
+                        color: Colors.black54,
+                      ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _getStatusText(friend.status, friend.location),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        color: Colors.black54,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-        title: Text(
-          friend.displayName,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: _getTrustColor(friend.tags), // 닉네임 색상 적용
           ),
         ),
-        subtitle: Text(
-          _getLocationText(friend),
-          style: const TextStyle(color: Colors.black54, fontSize: 12),
-          maxLines: 1, // 한 줄로 제한
-          overflow: TextOverflow.ellipsis, // 말줄임표 처리
-        ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (friend.lastPlatform != null)
-              Icon(
-                _getPlatformIcon(friend.lastPlatform!),
-                size: 16,
-                color: Colors.black54,
-              ),
-            const SizedBox(height: 4),
-            Text(
-              _getStatusText(friend.status, friend.location),
-              style: const TextStyle(
-                fontSize: 10,
-                color: Colors.black54,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        onTap: () {
-          _showFriendDetails(friend);
-        },
       ),
     );
-  }
-
-  Color _getStatusColor(String? status, String? location) {
-    final isInWorld =
-        location != null &&
-        (location.startsWith('wrld_') || location == 'private');
-
-    switch (status?.toLowerCase()) {
-      case 'active':
-        return isInWorld ? Colors.green : Colors.yellow[700]!;
-      case 'join me':
-        return isInWorld ? Colors.blue : Colors.yellow[700]!;
-      case 'ask me':
-        return isInWorld ? Colors.orange : Colors.yellow[700]!;
-      case 'busy':
-        return isInWorld ? Colors.red : Colors.yellow[700]!;
-      case 'offline':
-      default:
-        return Colors.grey;
-    }
   }
 
   String _getStatusText(String? status, String? location) {
@@ -502,28 +612,68 @@ class _FriendsTabState extends State<FriendsTab> {
                     Center(
                       child: Column(
                         children: [
-                          VRChatCircleAvatar(
-                            id: friend.id,
-                            radius: 50,
-                            imageUrl: friend.currentAvatarImageUrl,
-                            child: const Icon(Icons.person, size: 50),
+                          AvatarWithStatus(
+                            avatar: VRChatCircleAvatar(
+                              id: friend.id,
+                              radius: 50,
+                              imageUrl: friend.currentAvatarImageUrl,
+                              child: const Icon(Icons.person, size: 50),
+                            ),
+                            avatarRadius: 50,
+                            status: friend.status,
+                            location: friend.location,
                           ),
                           const SizedBox(height: 16),
-                          Text(
-                            friend.displayName,
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          // 닉네임과 복사 버튼
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  friend.displayName,
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              GestureDetector(
+                                onTap: () => _copyToClipboard(
+                                  friend.id,
+                                  friend.displayName,
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[100],
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Icon(
+                                    Icons.copy,
+                                    size: 16,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 4),
+                          // Status Message 표시 (아이디 대신)
                           Text(
-                            friend.id,
+                            friend.statusDescription?.isNotEmpty == true
+                                ? friend.statusDescription!
+                                : '상태 메시지 없음',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[600],
-                              fontFamily: 'monospace',
+                              fontStyle:
+                                  friend.statusDescription?.isNotEmpty == true
+                                  ? FontStyle.normal
+                                  : FontStyle.italic,
                             ),
+                            textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 18),
                           // 기능 버튼 Row 추가
@@ -644,7 +794,7 @@ class _FriendsTabState extends State<FriendsTab> {
                         'Status Message',
                         friend.statusDescription!,
                       ),
-                    _buildDetailRow('Location', _getLocationText(friend)),
+                    _buildLocationDetailRow(friend),
                     if (friend.lastPlatform != null)
                       _buildDetailRow('Platform', friend.lastPlatform!),
                     if (friend.lastLogin != null)
@@ -660,6 +810,332 @@ class _FriendsTabState extends State<FriendsTab> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 친구 액션 메뉴를 표시하는 함수 (길게 누르기)
+  void _showFriendActionMenu(Friend friend) {
+    // 햅틱 피드백 추가
+    HapticFeedback.mediumImpact();
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: MediaQuery.of(context).size.width * 0.85,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 친구 정보 헤더
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  children: [
+                    AvatarWithStatus(
+                      avatar: VRChatCircleAvatar(
+                        id: friend.id,
+                        radius: 30,
+                        imageUrl: friend.currentAvatarThumbnailImageUrl,
+                        child: const Icon(Icons.person, size: 30),
+                      ),
+                      avatarRadius: 30,
+                      status: friend.status,
+                      location: friend.location,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      friend.displayName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _getStatusText(friend.status, friend.location),
+                      style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // 액션 메뉴 옵션들
+              _buildActionMenuItem(
+                icon: Icons.info_outline,
+                title: '자세히',
+                subtitle: '친구의 상세 정보 보기',
+                color: Colors.blue,
+                onTap: () {
+                  Navigator.pop(context);
+                  _showFriendDetails(friend);
+                },
+              ),
+              _buildActionMenuItem(
+                icon: Icons.star_border,
+                title: '즐겨찾기 추가',
+                subtitle: '빠른 접근을 위해 즐겨찾기에 추가',
+                color: Colors.amber,
+                onTap: () {
+                  Navigator.pop(context);
+                  _addToFavorites(friend);
+                },
+              ),
+              _buildActionMenuItem(
+                icon: Icons.block,
+                title: '차단하기',
+                subtitle: '이 사용자를 차단하고 숨김',
+                color: Colors.orange,
+                onTap: () {
+                  Navigator.pop(context);
+                  _blockFriend(friend);
+                },
+              ),
+              _buildActionMenuItem(
+                icon: Icons.person_remove,
+                title: '친구 삭제',
+                subtitle: '친구 목록에서 제거',
+                color: Colors.red,
+                onTap: () {
+                  Navigator.pop(context);
+                  _deleteFriend(friend);
+                },
+              ),
+              _buildActionMenuItem(
+                icon: Icons.report,
+                title: '신고하기',
+                subtitle: '부적절한 행동 신고',
+                color: Colors.purple,
+                onTap: () {
+                  Navigator.pop(context);
+                  _reportFriend(friend);
+                },
+                isLast: true,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 액션 메뉴 아이템 위젯
+  Widget _buildActionMenuItem({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required Color color,
+    required VoidCallback onTap,
+    bool isLast = false,
+  }) {
+    return Material(
+      color: Colors.white,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 12,
+            bottom: isLast ? 20 : 12,
+          ),
+          child: Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: color.withOpacity(0.1),
+                child: Icon(icon, color: color, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 즐겨찾기 추가 기능
+  void _addToFavorites(Friend friend) {
+    // TODO: 실제 즐겨찾기 기능 구현
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${friend.displayName}을(를) 즐겨찾기에 추가했습니다'),
+        backgroundColor: Colors.amber,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  /// 친구 차단 기능
+  void _blockFriend(Friend friend) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('친구 차단'),
+        content: Text(
+          '${friend.displayName}을(를) 차단하시겠습니까?\n\n차단된 사용자는 더 이상 당신을 찾을 수 없습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // TODO: 실제 차단 기능 구현
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${friend.displayName}을(를) 차단했습니다'),
+                  backgroundColor: Colors.orange,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.orange),
+            child: const Text('차단'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 친구 삭제 기능
+  void _deleteFriend(Friend friend) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('친구 삭제'),
+        content: Text('${friend.displayName}을(를) 친구 목록에서 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // TODO: 실제 삭제 기능 구현
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${friend.displayName}을(를) 친구 목록에서 삭제했습니다'),
+                  backgroundColor: Colors.red,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 친구 신고 기능
+  void _reportFriend(Friend friend) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('사용자 신고'),
+        content: Text(
+          '${friend.displayName}을(를) 신고하시겠습니까?\n\n신고된 내용은 VRChat 운영팀에서 검토됩니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              // TODO: 실제 신고 기능 구현
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('${friend.displayName}을(를) 신고했습니다'),
+                  backgroundColor: Colors.purple,
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.purple),
+            child: const Text('신고'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 위치 정보를 FutureBuilder로 표시하는 상세 행
+  Widget _buildLocationDetailRow(Friend friend) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(
+            width: 100,
+            child: Text(
+              'Location:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: FutureBuilder<Map<String, dynamic>>(
+              future: _getCachedLocationInfo(friend.location ?? ''),
+              builder: (context, snapshot) {
+                String locationText;
+                if (snapshot.hasData) {
+                  final data = snapshot.data!;
+                  final worldName = data['worldName'] ?? '';
+                  final instanceType = data['instanceType'] ?? '';
+
+                  if (instanceType.isNotEmpty && worldName.isNotEmpty) {
+                    locationText = '$worldName ($instanceType)';
+                  } else {
+                    locationText = worldName.isNotEmpty
+                        ? worldName
+                        : _getLocationText(friend);
+                  }
+                } else {
+                  locationText = _getLocationText(friend);
+                }
+
+                return Text(
+                  locationText,
+                  style: const TextStyle(fontFamily: 'monospace'),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -681,6 +1157,19 @@ class _FriendsTabState extends State<FriendsTab> {
             child: Text(value, style: const TextStyle(fontFamily: 'monospace')),
           ),
         ],
+      ),
+    );
+  }
+
+  /// 클립보드에 텍스트를 복사하는 함수
+  void _copyToClipboard(String text, String displayName) {
+    Clipboard.setData(ClipboardData(text: text));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$displayName의 ID가 클립보드에 복사되었습니다'),
+        backgroundColor: Colors.blue,
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -1048,34 +1537,27 @@ class _FriendsTabState extends State<FriendsTab> {
 
   /// 위치 헤더 위젯 생성 (위치 정보와 인스턴스 정보 표시)
   Widget _buildLocationHeader(String location, int friendCount) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-      decoration: const BoxDecoration(
-        color: Color(0xFFF8F9FA),
-        border: Border(
-          bottom: BorderSide(color: Color(0xFFE1E4E8), width: 0.5),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 위치 정보와 인스턴스 정보를 캐시된 Future로 로드
-          FutureBuilder<Map<String, dynamic>>(
-            future: _getCachedLocationInfo(location),
-            builder: (context, snapshot) {
-              final data = snapshot.data;
-              final worldName =
-                  data?['worldName'] ?? _getSimpleLocationText(location);
-              final instanceType = data?['instanceType'] ?? '';
-              final totalUsers = data?['totalUsers'] ?? 0;
-              final instanceFriendCount = data?['friendCount'] ?? 0;
+    return GestureDetector(
+      onTap: () => _showInstanceDetails(location),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: const BoxDecoration(color: Color(0xFFF8F9FA)),
+        child: FutureBuilder<Map<String, dynamic>>(
+          future: _getCachedLocationInfo(location),
+          builder: (context, snapshot) {
+            final data = snapshot.data;
+            final worldName =
+                data?['worldName'] ?? _getSimpleLocationText(location);
+            final instanceType = data?['instanceType'] ?? '';
+            final totalUsers = data?['totalUsers'] ?? 0;
+            final instanceFriendCount = data?['friendCount'] ?? 0;
 
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 월드 이름
-                  Text(
+            return Row(
+              children: [
+                // 월드 이름 (텍스트 오버플로우 처리)
+                Expanded(
+                  child: Text(
                     worldName,
                     style: const TextStyle(
                       fontSize: 14,
@@ -1083,59 +1565,58 @@ class _FriendsTabState extends State<FriendsTab> {
                       color: Color(0xFF1a1a1a),
                       height: 1.3,
                     ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                  const SizedBox(height: 4),
-                  // 인스턴스 정보와 인원수
-                  Row(
-                    children: [
-                      if (instanceType.isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: _getInstanceTypeColor(instanceType),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            instanceType,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF4A9EFF).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          totalUsers > 0
-                              ? '($totalUsers/${instanceFriendCount})'
-                              : '$friendCount명',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF4A9EFF),
-                          ),
-                        ),
+                ),
+                const SizedBox(width: 8),
+                // 인스턴스 타입 배지
+                if (instanceType.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: _getInstanceTypeColor(instanceType),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      instanceType,
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
                       ),
-                    ],
+                    ),
                   ),
+                  const SizedBox(width: 8),
                 ],
-              );
-            },
-          ),
-        ],
+                // 인원수 정보
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4A9EFF).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    totalUsers > 0
+                        ? '($totalUsers/${instanceFriendCount})'
+                        : '$friendCount명',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF4A9EFF),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -1275,5 +1756,136 @@ class _FriendsTabState extends State<FriendsTab> {
     }
 
     return location;
+  }
+
+  /// 인스턴스 상세 정보를 보여주는 모달을 표시합니다
+  void _showInstanceDetails(String location) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            children: [
+              // 드래그 핸들
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              // 헤더
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Text(
+                      '인스턴스 정보',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+              ),
+              // 내용
+              Expanded(
+                child: FutureBuilder<Map<String, dynamic>>(
+                  future: _getCachedLocationInfo(location),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final data = snapshot.data;
+                    if (data == null) {
+                      return const Center(child: Text('인스턴스 정보를 불러올 수 없습니다.'));
+                    }
+
+                    final worldName = data['worldName'] ?? 'Unknown World';
+                    final instanceType = data['instanceType'] ?? '';
+                    final totalUsers = data['totalUsers'] ?? 0;
+                    final friendCount = data['friendCount'] ?? 0;
+
+                    return SingleChildScrollView(
+                      controller: scrollController,
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // 월드 이름
+                          _buildInstanceDetailRow('월드 이름', worldName),
+                          const SizedBox(height: 16),
+
+                          // 인스턴스 타입
+                          if (instanceType.isNotEmpty) ...[
+                            _buildInstanceDetailRow('인스턴스 타입', instanceType),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // 총 인원수
+                          _buildInstanceDetailRow('총 인원수', '$totalUsers명'),
+                          const SizedBox(height: 16),
+
+                          // 친구 수
+                          _buildInstanceDetailRow('친구 수', '$friendCount명'),
+                          const SizedBox(height: 16),
+
+                          // 원본 위치 정보
+                          _buildInstanceDetailRow('위치 정보', location),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 상세 정보 행을 생성합니다
+  Widget _buildInstanceDetailRow(String label, String value) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.grey,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w400,
+            color: Colors.black87,
+          ),
+        ),
+      ],
+    );
   }
 }

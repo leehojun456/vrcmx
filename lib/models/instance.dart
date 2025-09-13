@@ -21,6 +21,7 @@ class Instance {
   final Map<String, dynamic>? platforms;
   final Map<String, dynamic>? world;
   final List<dynamic>? users;
+  final String? originalLocation; // 원본 location 정보 (URL 메타데이터 포함)
 
   Instance({
     required this.id,
@@ -45,6 +46,7 @@ class Instance {
     this.platforms,
     this.world,
     this.users,
+    this.originalLocation,
   });
 
   factory Instance.fromJson(Map<String, dynamic> json) {
@@ -71,6 +73,7 @@ class Instance {
       platforms: json['platforms'],
       world: json['world'],
       users: json['users'],
+      originalLocation: json['originalLocation'],
     );
   }
 
@@ -98,15 +101,33 @@ class Instance {
       'platforms': platforms,
       'world': world,
       'users': users,
+      'originalLocation': originalLocation,
     };
   }
 
   /// 인스턴스 타입을 사용자 친화적인 텍스트로 변환
+  /// originalLocation 정보를 우선적으로 사용하여 실제 인스턴스 타입을 판단
   String get displayType {
+    // originalLocation 정보가 있으면 URL 메타데이터를 기반으로 타입 판단
+    final locationToCheck = originalLocation ?? location;
+    if (locationToCheck != null && locationToCheck.isNotEmpty) {
+      if (locationToCheck.contains('~hidden(')) {
+        return 'Friends+';
+      } else if (locationToCheck.contains('~friends(')) {
+        return 'Friends';
+      } else if (locationToCheck.contains('~private(')) {
+        return 'Invite Only';
+      } else if (locationToCheck.contains('~group(')) {
+        return 'Group';
+      }
+      // 메타데이터가 없으면 Public으로 간주
+      return 'Public';
+    }
+
+    // location 정보가 없으면 기존 type 필드 사용
     switch (type.toLowerCase()) {
       case 'public':
         return 'Public';
-      case 'friends+':
       case 'hidden':
         return 'Friends+';
       case 'friends':
@@ -115,12 +136,9 @@ class Instance {
         return 'Invite Only';
       case 'group':
         return 'Group';
-      case 'groupplus':
-        return 'Group+';
-      case 'grouppublic':
-        return 'Group Public';
       default:
-        return type;
+        // 알 수 없는 타입은 원본 값을 그대로 표시
+        return type.isNotEmpty ? type : 'Unknown';
     }
   }
 
